@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, Sparkles } from "lucide-react";
+import { ChevronDown, Sparkles, LogOut } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
 import { navGroups } from "@/lib/nav";
+
+const HIDDEN_ON = ["/login", "/setup"];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const group of navGroups) {
@@ -17,6 +21,10 @@ export function Sidebar() {
     }
     return initial;
   });
+
+  if (HIDDEN_ON.includes(pathname)) {
+    return null;
+  }
 
   function toggleGroup(title: string) {
     setOpenGroups((prev) => ({ ...prev, [title]: !prev[title] }));
@@ -99,8 +107,29 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="border-t border-[var(--border)] px-5 py-4">
-        <p className="text-xs text-[var(--muted)]">Mod demonstrativ · date mock</p>
+      <div className="border-t border-[var(--border)] px-4 py-4">
+        {session?.user ? (
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold text-[var(--foreground)]">
+                {session.user.name || session.user.email}
+              </p>
+              <p className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+                {session.user.role === "OWNER" ? "Proprietar" : "Angajat"}
+              </p>
+            </div>
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--muted)] hover:bg-[var(--pink-50)] hover:text-[var(--pink-600)]"
+              title="Deconectare"
+            >
+              <LogOut size={13} />
+              Ieșire
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-[var(--muted)]">Se încarcă...</p>
+        )}
       </div>
     </aside>
   );
