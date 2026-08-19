@@ -12,7 +12,7 @@ export function KpiCard({
   value: string;
   suffix?: string;
   sublabel?: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   tone?: "pink" | "dark";
 }) {
   const isDark = tone === "dark";
@@ -32,13 +32,15 @@ export function KpiCard({
         >
           {label}
         </span>
-        <span
-          className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-            isDark ? "bg-white/15 text-white" : "bg-[var(--pink-100)] text-[var(--pink-600)]"
-          }`}
-        >
-          <Icon size={16} />
-        </span>
+        {Icon && (
+          <span
+            className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+              isDark ? "bg-white/15 text-white" : "bg-[var(--pink-100)] text-[var(--pink-600)]"
+            }`}
+          >
+            <Icon size={16} />
+          </span>
+        )}
       </div>
       <p className="text-2xl font-extrabold">
         {value}

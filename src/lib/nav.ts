@@ -9,7 +9,6 @@ import {
   Calculator,
   ClipboardCheck,
   Landmark,
-  BatteryCharging,
   type LucideIcon,
 } from "lucide-react";
 
@@ -102,11 +101,6 @@ export const navGroups: NavGroup[] = [
     title: "Cashflow",
     icon: Landmark,
     items: [{ label: "Raport cashflow", href: "/cashflow", description: "Plăți marfă China/România, alertă deficit cash" }],
-  },
-  {
-    title: "Raport Baterii",
-    icon: BatteryCharging,
-    items: [{ label: "Raport Baterii", href: "/raport-baterii" }],
   },
 ];
 

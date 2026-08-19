@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Nova CRM",
-  description: "CRM local pentru vânzări e-commerce, financiar și operațiuni",
+  title: "Infiniteea CRM",
+  description: "CRM local Infiniteea pentru vânzări e-commerce, financiar și operațiuni",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

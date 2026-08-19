@@ -1,11 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fdf6f8;
+  --background: #f7f1e8;
   --surface: #ffffff;
-  --foreground: #241a20;
-  --muted: #8a7680;
-  --border: #f3d9e3;
+  --foreground: #2b2420;
+  --muted: #8a8072;
+  --border: #e8dcc8;
+
+  --beige-50: #fdfbf7;
+  --beige-100: #f7f1e8;
+  --beige-200: #efe4d1;
+  --beige-300: #e3d3b4;
+  --beige-400: #d3bd91;
+  --beige-500: #c0a473;
+  --beige-600: #a2865a;
+  --beige-700: #816a47;
+  --beige-800: #63513a;
+  --beige-900: #453a2c;
 
   --pink-50: #fff5f8;
   --pink-100: #ffe4ee;
@@ -25,6 +36,17 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
+
+  --color-beige-50: var(--beige-50);
+  --color-beige-100: var(--beige-100);
+  --color-beige-200: var(--beige-200);
+  --color-beige-300: var(--beige-300);
+  --color-beige-400: var(--beige-400);
+  --color-beige-500: var(--beige-500);
+  --color-beige-600: var(--beige-600);
+  --color-beige-700: var(--beige-700);
+  --color-beige-800: var(--beige-800);
+  --color-beige-900: var(--beige-900);
 
   --color-pink-50: var(--pink-50);
   --color-pink-100: var(--pink-100);

@@ -29,7 +29,7 @@ export function Sidebar() {
           <Sparkles size={20} />
         </div>
         <div>
-          <p className="text-sm font-semibold text-[var(--foreground)]">Nova CRM</p>
+          <p className="text-sm font-semibold text-[var(--foreground)]">Infiniteea</p>
           <p className="text-xs text-[var(--muted)]">E-commerce Command Center</p>
         </div>
       </div>
@@ -100,7 +100,7 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-[var(--border)] px-5 py-4">
-        <p className="text-xs text-[var(--muted)]">Sincronizat cu Shopify &amp; eMAG</p>
+        <p className="text-xs text-[var(--muted)]">Mod demonstrativ · date mock</p>
       </div>
     </aside>
   );
