@@ -15,12 +15,30 @@ type TrendyolOrder = {
   orderNumber?: string;
   grossAmount?: number;
   totalPrice?: number;
+  status?: string;
+  shipmentPackageStatus?: string;
 };
 
 type TrendyolOrdersResponse = {
   content: TrendyolOrder[];
   totalPages: number;
 };
+
+// Statusuri excluse din "vânzări nete" — anulate/nelivrate/returnate,
+// la fel cum panoul Trendyol exclude aceste comenzi din "Net sales".
+const EXCLUDED_STATUSES = new Set([
+  "Cancelled",
+  "UnDelivered",
+  "UnDeliveredAndReturned",
+  "Returned",
+  "UnSupplied",
+]);
+
+function isCountedOrder(order: TrendyolOrder): boolean {
+  const status = order.status ?? order.shipmentPackageStatus;
+  if (!status) return true;
+  return !EXCLUDED_STATUSES.has(status);
+}
 
 function getCredentials() {
   const apiKey = process.env.TRENDYOL_API_KEY;
@@ -63,6 +81,7 @@ async function fetchOrdersWindow(
 
     const json = (await res.json()) as TrendyolOrdersResponse;
     for (const order of json.content ?? []) {
+      if (!isCountedOrder(order)) continue;
       revenue += Number(order.grossAmount ?? order.totalPrice ?? 0);
       orders += 1;
     }
