@@ -26,6 +26,7 @@ import {
 } from "@/lib/mock-data";
 import { getShopifyOrderStats } from "@/lib/shopify-api";
 import { getTrendyolOrderStats } from "@/lib/trendyol-api";
+import { getEmagOrderStats } from "@/lib/emag-api";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,17 @@ export default async function DashboardPage() {
     mockSources.push("Trendyol");
   }
 
-  mockSources.push("eMAG");
+  try {
+    const emagStats = await getEmagOrderStats();
+    if (emagStats) {
+      applyLiveStats(platformSales, "emag", emagStats);
+      liveSources.push("eMAG");
+    } else {
+      mockSources.push("eMAG");
+    }
+  } catch {
+    mockSources.push("eMAG");
+  }
 
   const salesSummary = buildSalesSummary(platformSales);
   const profitSummary = buildProfitSummary(salesSummary);
