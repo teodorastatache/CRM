@@ -24,6 +24,7 @@ export async function GET() {
   url.searchParams.set("size", "200");
 
   const res = await fetch(url.toString(), {
+    cache: "no-store",
     headers: {
       Authorization: authHeader,
       "User-Agent": `${sellerId} - SelfIntegration`,

@@ -49,6 +49,7 @@ async function fetchOrdersInRange(
 
     const res = await fetch(`https://${shopDomain}/admin/api/${API_VERSION}/graphql.json`, {
       method: "POST",
+      cache: "no-store",
       headers: {
         "Content-Type": "application/json",
         "X-Shopify-Access-Token": accessToken,
