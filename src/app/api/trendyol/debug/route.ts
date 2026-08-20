@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import { getTrendyolOrderStats } from "@/lib/trendyol-api";
 
 const TRENDYOL_BASE = "https://apigw.trendyol.com/integration/order/sellers";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const apiKey = process.env.TRENDYOL_API_KEY;
@@ -69,6 +72,14 @@ export async function GET() {
     allKeys: Object.keys(order),
   }));
 
+  let productionStats: unknown;
+  let productionError: string | null = null;
+  try {
+    productionStats = await getTrendyolOrderStats();
+  } catch (err) {
+    productionError = err instanceof Error ? err.message : String(err);
+  }
+
   return NextResponse.json({
     requestWindow: { startOfMonth: new Date(startOfMonth).toISOString(), startOfToday: new Date(startOfToday).toISOString() },
     totalElements: data.totalElements,
@@ -76,5 +87,7 @@ export async function GET() {
     fetchedThisPage: content.length,
     statusCounts,
     sampleOrders,
+    productionStats,
+    productionError,
   });
 }
