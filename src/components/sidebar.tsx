@@ -7,7 +7,7 @@ import { ChevronDown, Sparkles, LogOut } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import { navGroups } from "@/lib/nav";
 
-const HIDDEN_ON = ["/login", "/setup"];
+const HIDDEN_ON = ["/login", "/setup", "/reset"];
 
 export function Sidebar() {
   const pathname = usePathname();
