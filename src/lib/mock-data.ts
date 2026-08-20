@@ -10,7 +10,7 @@ export type PlatformSales = {
   monthOrders: number;
 };
 
-export const platformSales: PlatformSales[] = [
+export const mockPlatformSales: PlatformSales[] = [
   {
     key: "shopify",
     label: "Site (Shopify)",
@@ -40,37 +40,43 @@ export const platformSales: PlatformSales[] = [
   },
 ];
 
-export const salesSummary = {
-  yesterdayRevenue: platformSales.reduce((sum, p) => sum + p.yesterdayRevenue, 0),
-  yesterdayOrders: platformSales.reduce((sum, p) => sum + p.yesterdayOrders, 0),
-  monthRevenue: platformSales.reduce((sum, p) => sum + p.monthRevenue, 0),
-  monthOrders: platformSales.reduce((sum, p) => sum + p.monthOrders, 0),
-};
+export function buildSalesSummary(platformSales: PlatformSales[]) {
+  return {
+    yesterdayRevenue: platformSales.reduce((sum, p) => sum + p.yesterdayRevenue, 0),
+    yesterdayOrders: platformSales.reduce((sum, p) => sum + p.yesterdayOrders, 0),
+    monthRevenue: platformSales.reduce((sum, p) => sum + p.monthRevenue, 0),
+    monthOrders: platformSales.reduce((sum, p) => sum + p.monthOrders, 0),
+  };
+}
 
-export const profitSummary = {
-  daily: {
-    revenue: salesSummary.yesterdayRevenue,
-    cogs: 14210,
-    opex: 3180,
-    get profit() {
-      return this.revenue - this.cogs - this.opex;
-    },
-    get margin() {
-      return this.profit / this.revenue;
-    },
-  },
-  monthly: {
-    revenue: salesSummary.monthRevenue,
-    cogs: 214600,
-    opex: 48900,
-    get profit() {
-      return this.revenue - this.cogs - this.opex;
-    },
-    get margin() {
-      return this.profit / this.revenue;
-    },
-  },
-};
+// Cost/opex sunt încă estimate (procente aplicate la venit) până conectăm o sursă
+// reală de costuri (marfă, cheltuieli operaționale) — deocamdată doar veniturile
+// pot fi reale (din Shopify).
+const COGS_RATIO = 0.58;
+const OPEX_RATIO = 0.13;
+
+function buildProfitBucket(revenue: number) {
+  const cogs = Math.round(revenue * COGS_RATIO);
+  const opex = Math.round(revenue * OPEX_RATIO);
+  const profit = revenue - cogs - opex;
+  return {
+    revenue,
+    cogs,
+    opex,
+    profit,
+    margin: revenue > 0 ? profit / revenue : 0,
+  };
+}
+
+export function buildProfitSummary(salesSummary: {
+  yesterdayRevenue: number;
+  monthRevenue: number;
+}) {
+  return {
+    daily: buildProfitBucket(salesSummary.yesterdayRevenue),
+    monthly: buildProfitBucket(salesSummary.monthRevenue),
+  };
+}
 
 export type ReviewsSummary = {
   ownBrand: number;

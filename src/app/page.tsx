@@ -14,15 +14,19 @@ import { SectionCard } from "@/components/section-card";
 import { KpiCard } from "@/components/kpi-card";
 import { formatCurrency, formatPercent, formatDate } from "@/lib/format";
 import {
-  platformSales,
-  salesSummary,
-  profitSummary,
+  mockPlatformSales,
+  buildSalesSummary,
+  buildProfitSummary,
   reviewsSummary,
   listingsSummary,
   stockAlerts,
   overdueInvoices,
   pulseToday,
+  type PlatformSales,
 } from "@/lib/mock-data";
+import { getShopifyOrderStats } from "@/lib/shopify-api";
+
+export const dynamic = "force-dynamic";
 
 const today = new Intl.DateTimeFormat("ro-RO", {
   weekday: "long",
@@ -31,7 +35,28 @@ const today = new Intl.DateTimeFormat("ro-RO", {
   year: "numeric",
 }).format(new Date());
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  let shopifyLive = false;
+  const platformSales: PlatformSales[] = mockPlatformSales.map((p) => ({ ...p }));
+
+  try {
+    const shopifyStats = await getShopifyOrderStats();
+    if (shopifyStats) {
+      const shopifyRow = platformSales.find((p) => p.key === "shopify");
+      if (shopifyRow) {
+        shopifyRow.yesterdayRevenue = shopifyStats.yesterdayRevenue;
+        shopifyRow.yesterdayOrders = shopifyStats.yesterdayOrders;
+        shopifyRow.monthRevenue = shopifyStats.monthRevenue;
+        shopifyRow.monthOrders = shopifyStats.monthOrders;
+        shopifyLive = true;
+      }
+    }
+  } catch {
+    // Shopify indisponibil momentan — rămânem pe datele mock pentru acest rând.
+  }
+
+  const salesSummary = buildSalesSummary(platformSales);
+  const profitSummary = buildProfitSummary(salesSummary);
   const maxMonthRevenue = Math.max(...platformSales.map((p) => p.monthRevenue));
   const reviewsProgress = Math.min(
     1,
@@ -49,7 +74,9 @@ export default function DashboardPage() {
           <p className="text-sm capitalize text-[var(--muted)]">{today} · Sumar executiv</p>
         </div>
         <span className="rounded-full border border-[var(--pink-200)] bg-[var(--pink-50)] px-4 py-1.5 text-xs font-semibold text-[var(--pink-600)]">
-          Date demonstrative (mock)
+          {shopifyLive
+            ? "Shopify live · eMAG & Trendyol încă mock"
+            : "Date demonstrative (mock)"}
         </span>
       </div>
 
