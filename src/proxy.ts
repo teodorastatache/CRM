@@ -10,7 +10,8 @@ export default auth((req) => {
   const isPublicApi =
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/setup") ||
-    pathname.startsWith("/api/admin-reset");
+    pathname.startsWith("/api/admin-reset") ||
+    pathname.startsWith("/api/shopify/callback");
 
   if (!isLoggedIn && !isPublicPage && !isPublicApi) {
     return NextResponse.redirect(new URL("/login", req.nextUrl.origin));

@@ -9,6 +9,7 @@ import {
   Calculator,
   ClipboardCheck,
   Landmark,
+  Plug,
   type LucideIcon,
 } from "lucide-react";
 
@@ -101,6 +102,12 @@ export const navGroups: NavGroup[] = [
     title: "Cashflow",
     icon: Landmark,
     items: [{ label: "Raport cashflow", href: "/cashflow", description: "Plăți marfă China/România, alertă deficit cash" }],
+  },
+  {
+    title: "Integrări",
+    icon: Plug,
+    href: "/integrari",
+    items: [],
   },
 ];
 
