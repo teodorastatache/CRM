@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTrendyolOrderStats } from "@/lib/trendyol-api";
+import { getTrendyolOrderStats, debugTrendyolMonthOrders } from "@/lib/trendyol-api";
 
 const TRENDYOL_BASE = "https://apigw.trendyol.com/integration/order/sellers";
 
@@ -80,6 +80,14 @@ export async function GET() {
     productionError = err instanceof Error ? err.message : String(err);
   }
 
+  let perOrderDecisions: unknown;
+  let decisionsError: string | null = null;
+  try {
+    perOrderDecisions = await debugTrendyolMonthOrders();
+  } catch (err) {
+    decisionsError = err instanceof Error ? err.message : String(err);
+  }
+
   return NextResponse.json({
     requestWindow: { startOfMonth: new Date(startOfMonth).toISOString(), startOfToday: new Date(startOfToday).toISOString() },
     totalElements: data.totalElements,
@@ -89,5 +97,7 @@ export async function GET() {
     sampleOrders,
     productionStats,
     productionError,
+    perOrderDecisions,
+    decisionsError,
   });
 }

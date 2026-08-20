@@ -114,6 +114,59 @@ async function fetchOrdersInRange(
   return { revenue, orders };
 }
 
+export async function debugTrendyolMonthOrders(): Promise<
+  | {
+      chunks: { startMs: number; endMs: number; orders: { orderNumber?: string; status?: string; shipmentPackageStatus?: string; counted: boolean }[] }[];
+    }
+  | null
+> {
+  const credentials = getCredentials();
+  if (!credentials) return null;
+
+  const authHeader =
+    "Basic " + Buffer.from(`${credentials.apiKey}:${credentials.apiSecret}`).toString("base64");
+
+  const now = new Date();
+  const startOfToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const startOfMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+
+  const chunks: { startMs: number; endMs: number; orders: { orderNumber?: string; status?: string; shipmentPackageStatus?: string; counted: boolean }[] }[] = [];
+  let chunkStart = startOfMonth;
+
+  while (chunkStart < startOfToday) {
+    const chunkEnd = Math.min(chunkStart + MAX_WINDOW_MS, startOfToday);
+    const url = new URL(`${TRENDYOL_BASE}/${credentials.sellerId}/orders`);
+    url.searchParams.set("startDate", String(chunkStart));
+    url.searchParams.set("endDate", String(chunkEnd));
+    url.searchParams.set("page", "0");
+    url.searchParams.set("size", String(PAGE_SIZE));
+
+    const res = await fetch(url.toString(), {
+      cache: "no-store",
+      headers: {
+        Authorization: authHeader,
+        "User-Agent": `${credentials.sellerId} - SelfIntegration`,
+      },
+    });
+    const json = (await res.json()) as TrendyolOrdersResponse;
+
+    chunks.push({
+      startMs: chunkStart,
+      endMs: chunkEnd,
+      orders: (json.content ?? []).map((o) => ({
+        orderNumber: o.orderNumber,
+        status: o.status,
+        shipmentPackageStatus: o.shipmentPackageStatus,
+        counted: isCountedOrder(o),
+      })),
+    });
+
+    chunkStart = chunkEnd;
+  }
+
+  return { chunks };
+}
+
 export async function getTrendyolOrderStats(): Promise<TrendyolOrderStats | null> {
   const credentials = getCredentials();
   if (!credentials) return null;
