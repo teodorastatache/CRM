@@ -1,6 +1,7 @@
 import { CheckCircle2, Plug } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { SectionCard } from "@/components/section-card";
+import { isTrendyolConfigured } from "@/lib/trendyol-api";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function IntegrariPage({
 }) {
   const { connected } = await searchParams;
   const shopify = await prisma.integration.findUnique({ where: { provider: "shopify" } });
+  const trendyolConfigured = isTrendyolConfigured();
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6 lg:p-8">
@@ -62,6 +64,27 @@ export default async function IntegrariPage({
             >
               Conectează Shopify
             </a>
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Trendyol" icon={Plug}>
+        {trendyolConfigured ? (
+          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--pink-700)]">
+            <CheckCircle2 size={16} />
+            Chei API configurate — datele de vânzări se preiau automat.
+          </div>
+        ) : (
+          <div className="text-sm text-[var(--muted)]">
+            <p className="mb-2">
+              Neconfigurat. Adaugă în Vercel (Settings → Environments → Production) variabilele:
+            </p>
+            <ul className="list-inside list-disc space-y-1 font-mono text-xs">
+              <li>TRENDYOL_API_KEY</li>
+              <li>TRENDYOL_API_SECRET</li>
+              <li>TRENDYOL_SELLER_ID</li>
+            </ul>
+            <p className="mt-2">Apoi fă un Redeploy — nu e nevoie de niciun buton de conectare aici.</p>
           </div>
         )}
       </SectionCard>

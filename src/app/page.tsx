@@ -25,6 +25,7 @@ import {
   type PlatformSales,
 } from "@/lib/mock-data";
 import { getShopifyOrderStats } from "@/lib/shopify-api";
+import { getTrendyolOrderStats } from "@/lib/trendyol-api";
 
 export const dynamic = "force-dynamic";
 
@@ -35,25 +36,49 @@ const today = new Intl.DateTimeFormat("ro-RO", {
   year: "numeric",
 }).format(new Date());
 
+function applyLiveStats(
+  platformSales: PlatformSales[],
+  key: PlatformSales["key"],
+  stats: { yesterdayRevenue: number; yesterdayOrders: number; monthRevenue: number; monthOrders: number }
+) {
+  const row = platformSales.find((p) => p.key === key);
+  if (!row) return;
+  row.yesterdayRevenue = stats.yesterdayRevenue;
+  row.yesterdayOrders = stats.yesterdayOrders;
+  row.monthRevenue = stats.monthRevenue;
+  row.monthOrders = stats.monthOrders;
+}
+
 export default async function DashboardPage() {
-  let shopifyLive = false;
   const platformSales: PlatformSales[] = mockPlatformSales.map((p) => ({ ...p }));
+  const liveSources: string[] = [];
+  const mockSources: string[] = [];
 
   try {
     const shopifyStats = await getShopifyOrderStats();
     if (shopifyStats) {
-      const shopifyRow = platformSales.find((p) => p.key === "shopify");
-      if (shopifyRow) {
-        shopifyRow.yesterdayRevenue = shopifyStats.yesterdayRevenue;
-        shopifyRow.yesterdayOrders = shopifyStats.yesterdayOrders;
-        shopifyRow.monthRevenue = shopifyStats.monthRevenue;
-        shopifyRow.monthOrders = shopifyStats.monthOrders;
-        shopifyLive = true;
-      }
+      applyLiveStats(platformSales, "shopify", shopifyStats);
+      liveSources.push("Shopify");
+    } else {
+      mockSources.push("Shopify");
     }
   } catch {
-    // Shopify indisponibil momentan — rămânem pe datele mock pentru acest rând.
+    mockSources.push("Shopify");
   }
+
+  try {
+    const trendyolStats = await getTrendyolOrderStats();
+    if (trendyolStats) {
+      applyLiveStats(platformSales, "trendyol", trendyolStats);
+      liveSources.push("Trendyol");
+    } else {
+      mockSources.push("Trendyol");
+    }
+  } catch {
+    mockSources.push("Trendyol");
+  }
+
+  mockSources.push("eMAG");
 
   const salesSummary = buildSalesSummary(platformSales);
   const profitSummary = buildProfitSummary(salesSummary);
@@ -74,8 +99,8 @@ export default async function DashboardPage() {
           <p className="text-sm capitalize text-[var(--muted)]">{today} · Sumar executiv</p>
         </div>
         <span className="rounded-full border border-[var(--pink-200)] bg-[var(--pink-50)] px-4 py-1.5 text-xs font-semibold text-[var(--pink-600)]">
-          {shopifyLive
-            ? "Shopify live · eMAG & Trendyol încă mock"
+          {liveSources.length > 0
+            ? `Live: ${liveSources.join(", ")} · mock: ${mockSources.join(", ")}`
             : "Date demonstrative (mock)"}
         </span>
       </div>
