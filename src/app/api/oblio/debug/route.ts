@@ -12,7 +12,18 @@ export async function GET() {
   }
 
   try {
-    const raw = await fetchOblioInvoicesRaw();
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const startOfMonth = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-01`;
+    const today = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}`;
+
+    const raw = await fetchOblioInvoicesRaw({
+      issuedAfter: startOfMonth,
+      issuedBefore: today,
+      limitPerPage: "20",
+      orderBy: "id",
+      orderDir: "desc",
+    });
     return NextResponse.json({ ok: true, raw });
   } catch (err) {
     return NextResponse.json(

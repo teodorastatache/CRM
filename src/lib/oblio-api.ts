@@ -26,12 +26,13 @@ export async function getOblioToken(): Promise<string> {
     method: "POST",
     cache: "no-store",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: new URLSearchParams({
+    body: JSON.stringify({
       client_id: credentials.email,
       client_secret: credentials.secret,
+      grant_type: "client_credentials",
     }),
   });
 
@@ -55,7 +56,7 @@ export async function fetchOblioInvoicesRaw(params: Record<string, string> = {})
   if (!credentials) throw new Error("Lipsesc credențialele Oblio.");
 
   const token = await getOblioToken();
-  const url = new URL(`${OBLIO_BASE}/docs/invoice`);
+  const url = new URL(`${OBLIO_BASE}/docs/invoice/list`);
   url.searchParams.set("cif", credentials.cif);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
@@ -66,6 +67,7 @@ export async function fetchOblioInvoicesRaw(params: Record<string, string> = {})
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
+      "Content-Type": "application/json",
     },
   });
 
@@ -73,6 +75,6 @@ export async function fetchOblioInvoicesRaw(params: Record<string, string> = {})
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`Oblio a răspuns non-JSON la /docs/invoice (status ${res.status}): ${text.slice(0, 500)}`);
+    throw new Error(`Oblio a răspuns non-JSON la /docs/invoice/list (status ${res.status}): ${text.slice(0, 500)}`);
   }
 }
