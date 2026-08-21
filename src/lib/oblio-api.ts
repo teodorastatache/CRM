@@ -51,13 +51,9 @@ export async function getOblioToken(): Promise<string> {
   return json.access_token;
 }
 
-export async function fetchOblioInvoicesRaw(params: Record<string, string> = {}): Promise<unknown> {
-  const credentials = getCredentials();
-  if (!credentials) throw new Error("Lipsesc credențialele Oblio.");
-
-  const token = await getOblioToken();
+async function fetchOblioPage(token: string, cif: string, params: Record<string, string>): Promise<unknown> {
   const url = new URL(`${OBLIO_BASE}/docs/invoice/list`);
-  url.searchParams.set("cif", credentials.cif);
+  url.searchParams.set("cif", cif);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
@@ -77,4 +73,99 @@ export async function fetchOblioInvoicesRaw(params: Record<string, string> = {})
   } catch {
     throw new Error(`Oblio a răspuns non-JSON la /docs/invoice/list (status ${res.status}): ${text.slice(0, 500)}`);
   }
+}
+
+export async function fetchOblioInvoicesRaw(params: Record<string, string> = {}): Promise<unknown> {
+  const credentials = getCredentials();
+  if (!credentials) throw new Error("Lipsesc credențialele Oblio.");
+  const token = await getOblioToken();
+  return fetchOblioPage(token, credentials.cif, params);
+}
+
+export type OblioInvoicePlatform = "emag" | "trendyol" | "site" | "fulfillment" | "call-center" | "altele";
+
+export type OblioInvoiceSummary = {
+  id: string;
+  referinta: string;
+  dataFacturii: string;
+  sumaFacturata: number;
+  sumaIncasata: number;
+  status: "încasat" | "neîncasat";
+  platform: OblioInvoicePlatform;
+};
+
+function classifyMentions(mentions: string): OblioInvoicePlatform {
+  const text = mentions.toLowerCase();
+  if (text.includes("emag.ro")) return "emag";
+  if (text.includes("trendyol")) return "trendyol";
+  if (text.includes("infiniteea.ro")) return "site";
+  if (text.includes("procesare comenzi")) return "fulfillment";
+  if (text.includes("contactare") || text.includes("marketing")) return "call-center";
+  return "altele";
+}
+
+type RawOblioInvoice = {
+  draft: string;
+  canceled: string;
+  collected: string;
+  storno: string;
+  seriesName: string;
+  number: string;
+  issueDate: string;
+  total: string;
+  mentions: string;
+  client?: { name?: string };
+};
+
+type RawOblioListResponse = {
+  status: number;
+  statusMessage?: string;
+  data?: RawOblioInvoice[];
+};
+
+export async function getOblioInvoiceSummaries(
+  issuedAfter: string,
+  issuedBefore: string
+): Promise<OblioInvoiceSummary[] | null> {
+  const credentials = getCredentials();
+  if (!credentials) return null;
+
+  const token = await getOblioToken();
+  const limit = 100;
+  const invoices: RawOblioInvoice[] = [];
+
+  for (let page = 0; page < 20; page++) {
+    const raw = (await fetchOblioPage(token, credentials.cif, {
+      issuedAfter,
+      issuedBefore,
+      limitPerPage: String(limit),
+      offset: String(page * limit),
+      orderBy: "id",
+      orderDir: "desc",
+    })) as RawOblioListResponse;
+
+    if (raw.status !== 200) {
+      throw new Error(`Oblio a returnat eroare: ${raw.statusMessage ?? "necunoscută"}`);
+    }
+
+    const data = raw.data ?? [];
+    invoices.push(...data);
+    if (data.length < limit) break;
+  }
+
+  return invoices
+    .filter((inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1")
+    .map((inv) => {
+      const total = Number(inv.total);
+      const collected = inv.collected === "1";
+      return {
+        id: `${inv.seriesName}${inv.number}`,
+        referinta: inv.client?.name ?? "—",
+        dataFacturii: inv.issueDate,
+        sumaFacturata: total,
+        sumaIncasata: collected ? total : 0,
+        status: collected ? "încasat" : "neîncasat",
+        platform: classifyMentions(inv.mentions ?? ""),
+      };
+    });
 }
