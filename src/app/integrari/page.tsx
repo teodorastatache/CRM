@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { SectionCard } from "@/components/section-card";
 import { isTrendyolConfigured } from "@/lib/trendyol-api";
 import { isEmagConfigured } from "@/lib/emag-api";
+import { isOblioConfigured } from "@/lib/oblio-api";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function IntegrariPage({
   const shopify = await prisma.integration.findUnique({ where: { provider: "shopify" } });
   const trendyolConfigured = isTrendyolConfigured();
   const emagConfigured = isEmagConfigured();
+  const oblioConfigured = isOblioConfigured();
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6 lg:p-8">
@@ -107,6 +109,27 @@ export default async function IntegrariPage({
               <li>EMAG_PASSWORD</li>
             </ul>
             <p className="mt-2">Apoi fă un Redeploy. eMAG poate cere și whitelisting de IP — dacă apar erori, verificăm împreună.</p>
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Oblio" icon={Plug}>
+        {oblioConfigured ? (
+          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--pink-700)]">
+            <CheckCircle2 size={16} />
+            Email + cheie + CIF configurate — datele de facturare se preiau automat.
+          </div>
+        ) : (
+          <div className="text-sm text-[var(--muted)]">
+            <p className="mb-2">
+              Neconfigurat. Adaugă în Vercel (Settings → Environments → Production) variabilele:
+            </p>
+            <ul className="list-inside list-disc space-y-1 font-mono text-xs">
+              <li>OBLIO_EMAIL</li>
+              <li>OBLIO_SECRET</li>
+              <li>OBLIO_CIF</li>
+            </ul>
+            <p className="mt-2">Apoi fă un Redeploy.</p>
           </div>
         )}
       </SectionCard>
