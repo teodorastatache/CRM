@@ -64,3 +64,41 @@ model OblioServiceInvoice {
 
   @@index([platform])
 }
+
+model ComandaMare {
+  id                 String   @id
+  furnizor           String
+  produse            String
+  cantitate          Int
+  dataPlecare        String
+  dataSosireEstimata String
+  valoare            Float
+  status             String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model ComandaAvion {
+  id                 String   @id
+  furnizor           String
+  produse            String
+  cantitate          Int
+  awb                String
+  dataPlecare        String
+  dataSosireEstimata String
+  valoare            Float
+  status             String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model ComandaPending {
+  id           String   @id
+  furnizor     String
+  produse      String
+  valoare      Float
+  motivPending String
+  dataCreare   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
