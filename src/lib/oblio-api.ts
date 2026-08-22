@@ -275,10 +275,22 @@ export async function fetchAllOblioInvoices(
   return { invoices, totalScanned: invoices.length, duplicatesSkipped, hitPageCap, pageErrors };
 }
 
+// Refacerea completă (paginare prin toate facturile + citire PDF pentru cele
+// neclasificate) poate dura zeci de secunde pe conturi cu volum mare — cache
+// scurt per interval ca reîmprospătările repetate ale paginii să fie instant.
+const summariesCache = new Map<string, { timestamp: number; data: OblioInvoiceSummary[] }>();
+const SUMMARIES_CACHE_TTL_MS = 5 * 60 * 1000;
+
 export async function getOblioInvoiceSummaries(
   issuedAfter: string,
   issuedBefore: string
 ): Promise<OblioInvoiceSummary[] | null> {
+  const cacheKey = `${issuedAfter}_${issuedBefore}`;
+  const cached = summariesCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < SUMMARIES_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   const result = await fetchAllOblioInvoices(issuedAfter, issuedBefore);
   if (!result) return null;
 
@@ -308,5 +320,6 @@ export async function getOblioInvoiceSummaries(
       } satisfies OblioInvoiceSummary;
   });
 
+  summariesCache.set(cacheKey, { timestamp: Date.now(), data: summaries });
   return summaries;
 }
