@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { platformIncasari as mockPlatformIncasari, type IncasariRow, type PlatformaIncasari } from "@/lib/mock/financiar";
 import { getOblioInvoiceSummaries } from "@/lib/oblio-api";
+import { prisma } from "@/lib/prisma";
 import { FacturiIncasariClient } from "./client";
 import { PeriodSelector, type PeriodMode } from "./period-selector";
 
@@ -29,6 +30,17 @@ const LUNI_LABEL = [
 function lastDayOfMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
+
+const AGGREGATE_ONLY_PLATFORMS: PlatformaIncasari[] = ["emag", "trendyol", "site"];
+const SERVICE_PLATFORMS: PlatformaIncasari[] = ["fulfillment", "call-center"];
+
+const emptyGrouped = (): Record<PlatformaIncasari, IncasariRow[]> => ({
+  emag: [],
+  trendyol: [],
+  site: [],
+  fulfillment: [],
+  "call-center": [],
+});
 
 export default async function FacturiIncasariPage({
   searchParams,
@@ -64,39 +76,80 @@ export default async function FacturiIncasariPage({
   }
 
   let platformRows: Record<PlatformaIncasari, IncasariRow[]> = mockPlatformIncasari;
+  let platformTotals: Partial<Record<PlatformaIncasari, { facturat: number; incasat: number }>> | undefined;
+  let noTableFor: PlatformaIncasari[] | undefined;
   let live = false;
   let unclassifiedCount = 0;
 
-  try {
-    const summaries = await getOblioInvoiceSummaries(issuedAfter, issuedBefore);
-    if (summaries) {
-      const grouped: Record<PlatformaIncasari, IncasariRow[]> = {
-        emag: [],
-        trendyol: [],
-        site: [],
-        fulfillment: [],
-        "call-center": [],
-      };
-      for (const s of summaries) {
-        if (s.platform === "altele") {
-          unclassifiedCount += 1;
-          continue;
+  if (mode === "year") {
+    try {
+      const monthlyTotals = await prisma.oblioMonthlyTotal.findMany({ where: { year } });
+      if (monthlyTotals.length > 0) {
+        const totals: Partial<Record<PlatformaIncasari, { facturat: number; incasat: number }>> = {};
+        for (const row of monthlyTotals) {
+          const platform = row.platform as PlatformaIncasari;
+          const existing = totals[platform] ?? { facturat: 0, incasat: 0 };
+          existing.facturat += row.sumaFacturata;
+          existing.incasat += row.sumaIncasata;
+          totals[platform] = existing;
         }
-        grouped[s.platform].push({
-          id: s.id,
-          referinta: s.referinta,
-          dataFacturii: s.dataFacturii,
-          dataScadenta: s.dataScadenta,
-          sumaFacturata: s.sumaFacturata,
-          sumaIncasata: s.sumaIncasata,
-          status: s.status,
+
+        const serviceInvoices = await prisma.oblioServiceInvoice.findMany({
+          where: {
+            platform: { in: SERVICE_PLATFORMS },
+            dataFacturii: { gte: issuedAfter, lte: issuedBefore },
+          },
+          orderBy: { dataFacturii: "desc" },
         });
+
+        const grouped = emptyGrouped();
+        for (const inv of serviceInvoices) {
+          const platform = inv.platform as PlatformaIncasari;
+          grouped[platform].push({
+            id: inv.id,
+            referinta: inv.referinta,
+            dataFacturii: inv.dataFacturii,
+            dataScadenta: inv.dataScadenta,
+            sumaFacturata: inv.sumaFacturata,
+            sumaIncasata: inv.sumaIncasata,
+            status: inv.status as IncasariRow["status"],
+          });
+        }
+
+        platformRows = grouped;
+        platformTotals = totals;
+        noTableFor = AGGREGATE_ONLY_PLATFORMS;
+        live = true;
       }
-      platformRows = grouped;
-      live = true;
+    } catch {
+      // Sincronizarea nu a rulat încă sau baza de date e indisponibilă — rămânem pe mock.
     }
-  } catch {
-    // Oblio indisponibil momentan — rămânem pe datele mock.
+  } else {
+    try {
+      const summaries = await getOblioInvoiceSummaries(issuedAfter, issuedBefore);
+      if (summaries) {
+        const grouped = emptyGrouped();
+        for (const s of summaries) {
+          if (s.platform === "altele") {
+            unclassifiedCount += 1;
+            continue;
+          }
+          grouped[s.platform].push({
+            id: s.id,
+            referinta: s.referinta,
+            dataFacturii: s.dataFacturii,
+            dataScadenta: s.dataScadenta,
+            sumaFacturata: s.sumaFacturata,
+            sumaIncasata: s.sumaIncasata,
+            status: s.status,
+          });
+        }
+        platformRows = grouped;
+        live = true;
+      }
+    } catch {
+      // Oblio indisponibil momentan — rămânem pe datele mock.
+    }
   }
 
   return (
@@ -116,7 +169,7 @@ export default async function FacturiIncasariPage({
           sus.
         </div>
       )}
-      <FacturiIncasariClient platformRows={platformRows} />
+      <FacturiIncasariClient platformRows={platformRows} platformTotals={platformTotals} noTableFor={noTableFor} />
     </div>
   );
 }

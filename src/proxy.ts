@@ -11,7 +11,8 @@ export default auth((req) => {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/setup") ||
     pathname.startsWith("/api/admin-reset") ||
-    pathname.startsWith("/api/shopify/callback");
+    pathname.startsWith("/api/shopify/callback") ||
+    pathname.startsWith("/api/oblio/sync");
 
   if (!isLoggedIn && !isPublicPage && !isPublicApi) {
     return NextResponse.redirect(new URL("/login", req.nextUrl.origin));

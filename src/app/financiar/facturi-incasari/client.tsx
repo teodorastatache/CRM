@@ -61,9 +61,17 @@ const columns: Column<IncasariRow>[] = [
   },
 ];
 
-function PlatformTab({ rows }: { rows: IncasariRow[] }) {
-  const totalFacturat = rows.reduce((sum, r) => sum + r.sumaFacturata, 0);
-  const totalIncasat = rows.reduce((sum, r) => sum + r.sumaIncasata, 0);
+function PlatformTab({
+  rows,
+  totals,
+  hideTable,
+}: {
+  rows: IncasariRow[];
+  totals?: { facturat: number; incasat: number };
+  hideTable?: boolean;
+}) {
+  const totalFacturat = totals?.facturat ?? rows.reduce((sum, r) => sum + r.sumaFacturata, 0);
+  const totalIncasat = totals?.incasat ?? rows.reduce((sum, r) => sum + r.sumaIncasata, 0);
   const restDeIncasat = totalFacturat - totalIncasat;
 
   return (
@@ -73,26 +81,43 @@ function PlatformTab({ rows }: { rows: IncasariRow[] }) {
         <KpiCard label="Total încasat" value={formatCurrency(totalIncasat)} suffix="lei" />
         <KpiCard label="Rest de încasat" value={formatCurrency(restDeIncasat)} suffix="lei" />
       </div>
-      <DataTable
-        columns={columns}
-        rows={rows}
-        getRowKey={(row) => row.id}
-        searchable={(row, q) => row.referinta.toLowerCase().includes(q) || row.id.toLowerCase().includes(q)}
-        searchPlaceholder="Caută după referință sau nr. factură..."
-      />
+      {hideTable ? (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--beige-50)] px-4 py-3 text-sm text-[var(--muted)]">
+          Prea multe facturi pentru afișare individuală pe un an întreg — totalurile de mai sus sunt
+          calculate din toate facturile. Pentru detaliu factură cu factură, alege perioada Lună sau Zi.
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={rows}
+          getRowKey={(row) => row.id}
+          searchable={(row, q) => row.referinta.toLowerCase().includes(q) || row.id.toLowerCase().includes(q)}
+          searchPlaceholder="Caută după referință sau nr. factură..."
+        />
+      )}
     </div>
   );
 }
 
 export function FacturiIncasariClient({
   platformRows,
+  platformTotals,
+  noTableFor,
 }: {
   platformRows: Record<PlatformaIncasari, IncasariRow[]>;
+  platformTotals?: Partial<Record<PlatformaIncasari, { facturat: number; incasat: number }>>;
+  noTableFor?: PlatformaIncasari[];
 }) {
   const tabs: TabItem[] = (Object.keys(platformRows) as PlatformaIncasari[]).map((key) => ({
     key,
     label: platformLabels[key],
-    content: <PlatformTab rows={platformRows[key]} />,
+    content: (
+      <PlatformTab
+        rows={platformRows[key]}
+        totals={platformTotals?.[key]}
+        hideTable={noTableFor?.includes(key)}
+      />
+    ),
   }));
 
   return (

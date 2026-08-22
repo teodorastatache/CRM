@@ -31,3 +31,36 @@ model Integration {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// Sume agregate per platformă/lună din Oblio — populate periodic de un job
+// de sincronizare, ca vizualizarea "An" din Facturi și încasări să nu mai
+// citească live toate facturile (volum prea mare pentru un singur request).
+model OblioMonthlyTotal {
+  id              String   @id @default(cuid())
+  year            Int
+  month           Int
+  platform        String
+  sumaFacturata   Float
+  sumaIncasata    Float
+  numarFacturi    Int
+  lastSyncedAt    DateTime @default(now())
+
+  @@unique([year, month, platform])
+}
+
+// Facturile individuale de fulfillment și call center — volum mic (~20-25/lună),
+// spre deosebire de eMAG/Trendyol/Site, așa că le păstrăm pe fiecare, sincronizate
+// de același job, ca să poată fi afișate și pentru vizualizarea "An".
+model OblioServiceInvoice {
+  id            String   @id
+  platform      String
+  referinta     String
+  dataFacturii  String
+  dataScadenta  String
+  sumaFacturata Float
+  sumaIncasata  Float
+  status        String
+  updatedAt     DateTime @updatedAt
+
+  @@index([platform])
+}
