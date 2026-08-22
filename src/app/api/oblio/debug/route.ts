@@ -65,6 +65,10 @@ export async function GET(request: Request) {
 
     const active = result.invoices.filter((inv) => inv.canceled !== "1" && inv.draft !== "1");
     const activeTotalSum = active.reduce((sum, inv) => sum + invoiceTotalRon(inv), 0);
+    const activeTotalIncasat = active.reduce(
+      (sum, inv) => sum + (inv.collected === "1" ? invoiceTotalRon(inv) : 0),
+      0
+    );
 
     const platformCountsAfterMentions = emptyPlatformRecord(() => 0);
     const platformSumsAfterMentions = emptyPlatformRecord(() => 0);
@@ -129,6 +133,7 @@ export async function GET(request: Request) {
         hitPageCap: result.hitPageCap,
         timedOut: result.timedOut,
         activeTotalSum,
+        activeTotalIncasat,
         pageErrors: result.pageErrors,
         platformCountsAfterMentions,
         platformSumsAfterMentions,
