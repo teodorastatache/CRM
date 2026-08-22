@@ -169,7 +169,19 @@ export async function classifyByInvoicePdf(link: string): Promise<OblioInvoicePl
 // Clienți confirmați manual când textul facturii nu se potrivește cu niciun cuvânt cheie cunoscut.
 const KNOWN_CLIENT_PLATFORM_OVERRIDES: Record<string, OblioInvoicePlatform> = {
   "DNG-E COMMERCE S.R.L.": "fulfillment",
+  "SPECTRUM INTERMEDIERE SRL": "call-center",
+  "CLC SMART GEAR S.R.L.": "call-center",
+  "ANDAN TRADE S.R.L.": "call-center",
+  "TCA TCN EST S.R.L.": "call-center",
+  "SERGIU MULTISERV S.R.L.": "call-center",
+  "BYRUSE S.R.L.": "call-center",
+  "COSTECH S.R.L.": "call-center",
 };
+
+// Formă juridică în numele clientului — prezența ei arată că e o firmă, nu o
+// persoană fizică. Fără niciun asemenea marcaj, tratăm clientul ca persoană fizică.
+const COMPANY_NAME_MARKERS =
+  /\b(S\.?R\.?L\.?|S\.?A\.?|P\.?F\.?A\.?|S\.?N\.?C\.?|S\.?C\.?S?\.?|I\.?I\.?|Î\.?I\.?|SUCURSALA|ONG|ASOCIA[TȚ]IA|FUNDA[TȚ]IA|COMPANY|CORP|LTD|GMBH|INC|PLC)\b/i;
 
 export async function classifyOblioInvoice(
   inv: {
@@ -189,6 +201,11 @@ export async function classifyOblioInvoice(
 
   const override = KNOWN_CLIENT_PLATFORM_OVERRIDES[inv.clientName.toUpperCase()];
   if (override) return override;
+
+  // Persoanele fizice rămase neclasificate (fără nicio formă juridică în nume)
+  // sunt aproape mereu comenzi eMAG cărora Oblio nu le-a completat mențiunea
+  // "emag" pe factură — confirmat manual pe un eșantion real de client.
+  if (!COMPANY_NAME_MARKERS.test(inv.clientName)) return "emag";
 
   // Lunile cu mai multe facturi neclasificate pot avea nevoie de sute de
   // citiri de PDF — dacă bugetul de timp al rutei e pe cale să expire,
