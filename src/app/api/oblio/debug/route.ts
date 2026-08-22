@@ -9,7 +9,11 @@ import {
 } from "@/lib/oblio-api";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 export const maxDuration = 60;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" };
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -34,7 +38,7 @@ export async function GET(request: Request) {
   if (!isOblioConfigured()) {
     return NextResponse.json(
       { error: "Lipsesc OBLIO_EMAIL, OBLIO_SECRET sau OBLIO_CIF din variabilele de mediu." },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS }
     );
   }
 
@@ -53,7 +57,7 @@ export async function GET(request: Request) {
     if (!result) {
       return NextResponse.json(
         { error: "Lipsesc OBLIO_EMAIL, OBLIO_SECRET sau OBLIO_CIF din variabilele de mediu." },
-        { status: 500 }
+        { status: 500, headers: NO_STORE_HEADERS }
       );
     }
 
@@ -104,29 +108,32 @@ export async function GET(request: Request) {
       platformSumsAfterPdf[r.platform] += r.total;
     }
 
-    return NextResponse.json({
-      ok: true,
-      year,
-      month,
-      issuedAfter,
-      issuedBefore,
-      totalScanned: result.totalScanned,
-      duplicatesSkipped: result.duplicatesSkipped,
-      hitPageCap: result.hitPageCap,
-      timedOut: result.timedOut,
-      activeTotalSum,
-      pageErrors: result.pageErrors,
-      platformCountsAfterMentions,
-      platformSumsAfterMentions,
-      unclassifiedAfterMentionsCount: unclassifiedAfterMentions.length,
-      platformCountsAfterPdf,
-      platformSumsAfterPdf,
-      pdfResults,
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        year,
+        month,
+        issuedAfter,
+        issuedBefore,
+        totalScanned: result.totalScanned,
+        duplicatesSkipped: result.duplicatesSkipped,
+        hitPageCap: result.hitPageCap,
+        timedOut: result.timedOut,
+        activeTotalSum,
+        pageErrors: result.pageErrors,
+        platformCountsAfterMentions,
+        platformSumsAfterMentions,
+        unclassifiedAfterMentionsCount: unclassifiedAfterMentions.length,
+        platformCountsAfterPdf,
+        platformSumsAfterPdf,
+        pdfResults,
+      },
+      { headers: NO_STORE_HEADERS }
+    );
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : String(err) },
-      { status: 502 }
+      { status: 502, headers: NO_STORE_HEADERS }
     );
   }
 }
