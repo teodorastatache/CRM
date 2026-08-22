@@ -280,9 +280,10 @@ export async function getOblioInvoiceSummaries(
   const result = await fetchAllOblioInvoices(issuedAfter, issuedBefore);
   if (!result) return null;
 
-  const active = result.invoices.filter(
-    (inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1"
-  );
+  // Facturile storno (corecții cu sumă negativă) sunt documente reale, emise —
+  // spre deosebire de cele anulate/ciornă, ele trebuie incluse, ca să scadă
+  // corect din totalul facturat platforma corespunzătoare.
+  const active = result.invoices.filter((inv) => inv.canceled !== "1" && inv.draft !== "1");
 
   const summaries = await mapWithConcurrency(active, 8, async (inv) => {
       const total = Number(inv.total);

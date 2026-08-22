@@ -33,9 +33,7 @@ export async function GET() {
       );
     }
 
-    const active = result.invoices.filter(
-      (inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1"
-    );
+    const active = result.invoices.filter((inv) => inv.canceled !== "1" && inv.draft !== "1");
     const activeTotalSum = active.reduce((sum, inv) => sum + Number(inv.total), 0);
 
     const platformCountsAfterMentions: Record<OblioInvoicePlatform, number> = {
