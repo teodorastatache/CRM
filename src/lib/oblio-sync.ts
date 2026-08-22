@@ -3,6 +3,7 @@ import {
   classifyOblioInvoice,
   fetchAllOblioInvoices,
   invoiceTotalRon,
+  mapWithConcurrency,
   type OblioInvoicePlatform,
 } from "@/lib/oblio-api";
 
@@ -25,6 +26,7 @@ export type SyncMonthResult = {
 };
 
 export async function syncOblioMonth(year: number, month: number): Promise<SyncMonthResult | null> {
+  const routeStart = Date.now();
   const issuedAfter = `${year}-${pad(month)}-01`;
   const issuedBefore = `${year}-${pad(month)}-${pad(lastDayOfMonth(year, month))}`;
 
@@ -42,17 +44,23 @@ export async function syncOblioMonth(year: number, month: number): Promise<SyncM
     altele: { facturat: 0, incasat: 0, count: 0 },
   };
 
+  // Lunile cu multe facturi neclasificate pot avea nevoie de citiri PDF pentru
+  // sute de facturi — lăsăm doar timp până aproape de limita rutei (60s).
+  const classifyDeadline = routeStart + 55000;
   const serviceInvoiceIds: string[] = [];
 
-  for (const inv of active) {
+  await mapWithConcurrency(active, 16, async (inv) => {
     const total = invoiceTotalRon(inv);
     const collected = inv.collected === "1";
-    const platform = await classifyOblioInvoice({
-      mentions: inv.mentions ?? "",
-      total,
-      clientName: inv.client?.name ?? "",
-      link: inv.link,
-    });
+    const platform = await classifyOblioInvoice(
+      {
+        mentions: inv.mentions ?? "",
+        total,
+        clientName: inv.client?.name ?? "",
+        link: inv.link,
+      },
+      classifyDeadline
+    );
 
     totals[platform].facturat += total;
     totals[platform].incasat += collected ? total : 0;
@@ -84,7 +92,7 @@ export async function syncOblioMonth(year: number, month: number): Promise<SyncM
         },
       });
     }
-  }
+  });
 
   for (const platform of REAL_PLATFORMS) {
     await prisma.oblioMonthlyTotal.upsert({

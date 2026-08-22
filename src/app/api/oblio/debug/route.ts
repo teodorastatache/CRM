@@ -44,6 +44,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    const routeStart = Date.now();
     const { searchParams } = new URL(request.url);
     const now = new Date();
     const year = Number(searchParams.get("year")) || now.getUTCFullYear();
@@ -76,17 +77,24 @@ export async function GET(request: Request) {
       if (platform === "altele") unclassifiedAfterMentions.push(inv);
     }
 
-    const pdfResults = await mapWithConcurrency(unclassifiedAfterMentions, 8, async (inv) => {
+    // Lunile cu multe facturi neclasificate pot avea nevoie de citiri PDF pentru
+    // sute de facturi — lăsăm doar timp până aproape de limita rutei (60s).
+    const classifyDeadline = routeStart + 55000;
+
+    const pdfResults = await mapWithConcurrency(unclassifiedAfterMentions, 16, async (inv) => {
       const id = `${inv.seriesName}${inv.number}`;
       const clientName = inv.client?.name ?? "(fără nume client)";
       const total = invoiceTotalRon(inv);
       try {
-        const platform = await classifyOblioInvoice({
-          mentions: inv.mentions ?? "",
-          total,
-          clientName,
-          link: inv.link,
-        });
+        const platform = await classifyOblioInvoice(
+          {
+            mentions: inv.mentions ?? "",
+            total,
+            clientName,
+            link: inv.link,
+          },
+          classifyDeadline
+        );
         return { id, clientName, total, hasLink: Boolean(inv.link), platform, error: null };
       } catch (err) {
         return {

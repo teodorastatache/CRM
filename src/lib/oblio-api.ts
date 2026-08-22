@@ -171,12 +171,15 @@ const KNOWN_CLIENT_PLATFORM_OVERRIDES: Record<string, OblioInvoicePlatform> = {
   "DNG-E COMMERCE S.R.L.": "fulfillment",
 };
 
-export async function classifyOblioInvoice(inv: {
-  mentions: string;
-  total: number;
-  clientName: string;
-  link?: string;
-}): Promise<OblioInvoicePlatform> {
+export async function classifyOblioInvoice(
+  inv: {
+    mentions: string;
+    total: number;
+    clientName: string;
+    link?: string;
+  },
+  deadline?: number
+): Promise<OblioInvoicePlatform> {
   const mentionsPlatform = classifyMentions(inv.mentions);
   if (mentionsPlatform !== "altele") return mentionsPlatform;
 
@@ -186,6 +189,11 @@ export async function classifyOblioInvoice(inv: {
 
   const override = KNOWN_CLIENT_PLATFORM_OVERRIDES[inv.clientName.toUpperCase()];
   if (override) return override;
+
+  // Lunile cu mai multe facturi neclasificate pot avea nevoie de sute de
+  // citiri de PDF — dacă bugetul de timp al rutei e pe cale să expire,
+  // renunțăm la citirea PDF-ului (rămâne "altele") în loc să riscăm un 504.
+  if (deadline && Date.now() > deadline) return "altele";
 
   if (inv.link) {
     try {
@@ -216,7 +224,7 @@ export type FetchAllOblioInvoicesResult = {
 export async function fetchAllOblioInvoices(
   issuedAfter: string,
   issuedBefore: string,
-  timeBudgetMs = 35000
+  timeBudgetMs = 40000
 ): Promise<FetchAllOblioInvoicesResult | null> {
   const credentials = getCredentials();
   if (!credentials) return null;
@@ -315,6 +323,7 @@ export async function getOblioInvoiceSummaries(
     return cached.data;
   }
 
+  const routeStart = Date.now();
   const result = await fetchAllOblioInvoices(issuedAfter, issuedBefore);
   if (!result) return null;
 
@@ -323,15 +332,22 @@ export async function getOblioInvoiceSummaries(
   // corect din totalul facturat platforma corespunzătoare.
   const active = result.invoices.filter((inv) => inv.canceled !== "1" && inv.draft !== "1");
 
-  const summaries = await mapWithConcurrency(active, 8, async (inv) => {
+  // Lunile cu multe facturi neclasificate pot avea nevoie de citiri PDF pentru
+  // sute de facturi — lăsăm doar timp până aproape de limita rutei (60s).
+  const classifyDeadline = routeStart + 55000;
+
+  const summaries = await mapWithConcurrency(active, 16, async (inv) => {
       const total = invoiceTotalRon(inv);
       const collected = inv.collected === "1";
-      const platform = await classifyOblioInvoice({
-        mentions: inv.mentions ?? "",
-        total,
-        clientName: inv.client?.name ?? "",
-        link: inv.link,
-      });
+      const platform = await classifyOblioInvoice(
+        {
+          mentions: inv.mentions ?? "",
+          total,
+          clientName: inv.client?.name ?? "",
+          link: inv.link,
+        },
+        classifyDeadline
+      );
       return {
         id: `${inv.seriesName}${inv.number}`,
         referinta: inv.client?.name ?? "—",
