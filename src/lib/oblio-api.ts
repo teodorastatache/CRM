@@ -144,7 +144,7 @@ export async function classifyByInvoicePdf(link: string): Promise<OblioInvoicePl
   const { default: pdfParse } = await import("pdf-parse/lib/pdf-parse.js");
   const { text } = await pdfParse(buffer);
   const t = text.toLowerCase();
-  if (t.includes("procesare comenzi")) return "fulfillment";
+  if (t.includes("procesare comenzi") || t.includes("depozitare")) return "fulfillment";
   if (t.includes("contactare") || t.includes("marketing")) return "call-center";
   return "altele";
 }
