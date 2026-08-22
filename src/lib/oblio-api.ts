@@ -148,17 +148,31 @@ export async function getOblioInvoiceSummaries(
   const invoices: RawOblioInvoice[] = [];
 
   for (let page = 0; page < 20; page++) {
-    const raw = (await fetchOblioPage(token, credentials.cif, {
-      issuedAfter,
-      issuedBefore,
-      limitPerPage: String(limit),
-      offset: String(page * limit),
-      orderBy: "id",
-      orderDir: "desc",
-    })) as RawOblioListResponse;
+    if (page > 0) await new Promise((resolve) => setTimeout(resolve, 200));
+    let raw: RawOblioListResponse | null = null;
 
-    if (raw.status !== 200) {
-      throw new Error(`Oblio a returnat eroare: ${raw.statusMessage ?? "necunoscută"}`);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const candidate = (await fetchOblioPage(token, credentials.cif, {
+        issuedAfter,
+        issuedBefore,
+        limitPerPage: String(limit),
+        offset: String(page * limit),
+        orderBy: "id",
+        orderDir: "desc",
+      })) as RawOblioListResponse;
+
+      if (candidate.status === 200) {
+        raw = candidate;
+        break;
+      }
+      // Posibil rate-limit temporar — reîncercăm cu backoff înainte să renunțăm.
+      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+    }
+
+    if (!raw) {
+      // Nu am putut citi această pagină — păstrăm ce am adunat până acum
+      // în loc să aruncăm toate datele reale strânse deja.
+      break;
     }
 
     const data = raw.data ?? [];

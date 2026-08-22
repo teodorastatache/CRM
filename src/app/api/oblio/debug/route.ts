@@ -19,7 +19,7 @@ type RawInvoice = {
   link?: string;
   client?: { name?: string };
 };
-type RawListResponse = { status: number; data?: RawInvoice[] };
+type RawListResponse = { status: number; statusMessage?: string; data?: RawInvoice[] };
 
 export async function GET() {
   if (!isOblioConfigured()) {
@@ -50,7 +50,10 @@ export async function GET() {
       altele: 0,
     };
 
+    const pageErrors: { page: number; status?: number; statusMessage?: string }[] = [];
+
     for (let page = 0; page < 20; page++) {
+      if (page > 0) await new Promise((resolve) => setTimeout(resolve, 200));
       const url = new URL(`${OBLIO_BASE}/docs/invoice/list`);
       url.searchParams.set("cif", cif);
       url.searchParams.set("issuedAfter", startOfMonth);
@@ -65,6 +68,12 @@ export async function GET() {
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       });
       const raw = (await res.json()) as RawListResponse;
+
+      if (raw.status !== 200) {
+        pageErrors.push({ page, status: raw.status, statusMessage: raw.statusMessage });
+        break;
+      }
+
       const data = raw.data ?? [];
       totalScanned += data.length;
 
@@ -119,6 +128,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       totalScanned,
+      pageErrors,
       platformCountsAfterMentions,
       unclassifiedAfterMentionsCount: unclassifiedAfterMentions.length,
       platformCountsAfterPdf,
