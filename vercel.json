@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/oblio/sync",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }

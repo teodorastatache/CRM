@@ -6,13 +6,11 @@ import { syncOblioMonth } from "@/lib/oblio-sync";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Sincronizează o singură lună pe invocare, ca să rămânem în bugetul de timp
-// al funcției serverless. Prioritizează luna curentă (cea mai activă); dacă
-// aceasta a fost sincronizată recent, alege cea mai "învechită" lună anterioară
-// din anul curent, astfel încât istoricul se completează treptat, pe parcursul
-// mai multor rulări ale job-ului programat.
-const CURRENT_MONTH_REFRESH_MS = 10 * 60 * 1000;
-
+// Contul Hobby de Vercel permite cron doar o dată pe zi, deci sincronizăm
+// o singură lună pe rulare — cea mai "învechită" din anul curent (nesincronizată
+// niciodată = cea mai veche posibil). Așa, istoricul anului se completează
+// treptat, o lună pe zi, iar odată prins din urmă, fiecare lună (inclusiv cea
+// curentă) se reîmprospătează pe rând, o dată la ~N zile.
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
@@ -42,22 +40,14 @@ export async function GET(request: Request) {
       if (!prev || row.lastSyncedAt < prev) oldestSyncByMonth.set(row.month, row.lastSyncedAt);
     }
 
-    const currentMonthLastSync = oldestSyncByMonth.get(currentMonth);
     let targetMonth = currentMonth;
-
-    if (currentMonthLastSync && Date.now() - currentMonthLastSync.getTime() < CURRENT_MONTH_REFRESH_MS) {
-      // Luna curentă e proaspătă — alegem cea mai învechită lună anterioară.
-      let oldestTime = new Date();
-      let found = false;
-      for (let m = 1; m < currentMonth; m++) {
-        const t = oldestSyncByMonth.get(m) ?? new Date(0);
-        if (!found || t < oldestTime) {
-          oldestTime = t;
-          targetMonth = m;
-          found = true;
-        }
+    let oldestTime = oldestSyncByMonth.get(currentMonth) ?? new Date(0);
+    for (let m = 1; m <= currentMonth; m++) {
+      const t = oldestSyncByMonth.get(m) ?? new Date(0);
+      if (t < oldestTime) {
+        oldestTime = t;
+        targetMonth = m;
       }
-      if (!found) targetMonth = currentMonth;
     }
 
     const result = await syncOblioMonth(year, targetMonth);
