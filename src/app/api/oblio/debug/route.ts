@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 const OBLIO_BASE = "https://www.oblio.eu/api";
 
-type RawInvoice = { seriesName: string; number: string; mentions?: string };
+type RawInvoice = { seriesName: string; number: string; mentions?: string; client?: { name?: string } };
 type RawListResponse = { status: number; data?: RawInvoice[] };
 
 export async function GET() {
@@ -25,10 +25,11 @@ export async function GET() {
     const token = await getOblioToken();
     const cif = process.env.OBLIO_CIF!;
     const limit = 100;
-    let candidate: RawInvoice | undefined;
     let totalScanned = 0;
 
-    for (let page = 0; page < 20 && !candidate; page++) {
+    const unclassifiedByClient = new Map<string, { count: number; sampleMentions: string; sampleId: string }>();
+
+    for (let page = 0; page < 20; page++) {
       const url = new URL(`${OBLIO_BASE}/docs/invoice/list`);
       url.searchParams.set("cif", cif);
       url.searchParams.set("issuedAfter", startOfMonth);
@@ -46,32 +47,35 @@ export async function GET() {
       const data = raw.data ?? [];
       totalScanned += data.length;
 
-      candidate = data.find((inv) => {
+      for (const inv of data) {
         const m = (inv.mentions ?? "").toLowerCase();
-        return !m.includes("emag") && !m.includes("trendyol") && !m.includes("infiniteea");
-      });
+        const isUnclassified = !m.includes("emag") && !m.includes("trendyol") && !m.includes("infiniteea");
+        if (!isUnclassified) continue;
+
+        const clientName = inv.client?.name ?? "(fără nume client)";
+        const existing = unclassifiedByClient.get(clientName);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          unclassifiedByClient.set(clientName, {
+            count: 1,
+            sampleMentions: inv.mentions ?? "",
+            sampleId: `${inv.seriesName}${inv.number}`,
+          });
+        }
+      }
 
       if (data.length < limit) break;
     }
 
-    let sampleDetail: unknown = null;
-    if (candidate) {
-      const detailUrl = new URL(`${OBLIO_BASE}/docs/invoice`);
-      detailUrl.searchParams.set("cif", cif);
-      detailUrl.searchParams.set("seriesName", candidate.seriesName);
-      detailUrl.searchParams.set("number", candidate.number);
-      const detailRes = await fetch(detailUrl.toString(), {
-        cache: "no-store",
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      });
-      sampleDetail = await detailRes.json();
-    }
+    const unclassifiedClients = Array.from(unclassifiedByClient.entries())
+      .map(([clientName, info]) => ({ clientName, ...info }))
+      .sort((a, b) => b.count - a.count);
 
     return NextResponse.json({
       ok: true,
       totalScanned,
-      candidateMentions: candidate?.mentions,
-      sampleDetail,
+      unclassifiedClients,
     });
   } catch (err) {
     return NextResponse.json(
