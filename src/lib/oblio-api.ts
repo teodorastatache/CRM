@@ -96,9 +96,9 @@ export type OblioInvoiceSummary = {
 
 function classifyMentions(mentions: string): OblioInvoicePlatform {
   const text = mentions.toLowerCase();
-  if (text.includes("emag.ro")) return "emag";
+  if (text.includes("emag")) return "emag";
   if (text.includes("trendyol")) return "trendyol";
-  if (text.includes("infiniteea.ro")) return "site";
+  if (text.includes("infiniteea")) return "site";
   if (text.includes("procesare comenzi")) return "fulfillment";
   if (text.includes("contactare") || text.includes("marketing")) return "call-center";
   return "altele";

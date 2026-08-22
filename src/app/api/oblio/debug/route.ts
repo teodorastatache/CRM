@@ -48,7 +48,7 @@ export async function GET() {
 
       candidate = data.find((inv) => {
         const m = (inv.mentions ?? "").toLowerCase();
-        return !m.includes("emag.ro") && !m.includes("trendyol") && !m.includes("infiniteea.ro");
+        return !m.includes("emag") && !m.includes("trendyol") && !m.includes("infiniteea");
       });
 
       if (data.length < limit) break;
