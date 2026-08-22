@@ -88,6 +88,7 @@ export type OblioInvoiceSummary = {
   id: string;
   referinta: string;
   dataFacturii: string;
+  dataScadenta: string;
   sumaFacturata: number;
   sumaIncasata: number;
   status: "încasat" | "neîncasat";
@@ -112,6 +113,7 @@ export type RawOblioInvoice = {
   seriesName: string;
   number: string;
   issueDate: string;
+  dueDate?: string;
   total: string;
   mentions: string;
   link?: string;
@@ -298,6 +300,7 @@ export async function getOblioInvoiceSummaries(
         id: `${inv.seriesName}${inv.number}`,
         referinta: inv.client?.name ?? "—",
         dataFacturii: inv.issueDate,
+        dataScadenta: inv.dueDate ?? inv.issueDate,
         sumaFacturata: total,
         sumaIncasata: collected ? total : 0,
         status: collected ? "încasat" : "neîncasat",

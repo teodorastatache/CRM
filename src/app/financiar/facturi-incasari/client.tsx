@@ -33,6 +33,12 @@ const columns: Column<IncasariRow>[] = [
     render: (row) => formatDate(row.dataFacturii),
   },
   {
+    key: "dataScadenta",
+    label: "Dată scadentă",
+    sortable: true,
+    render: (row) => formatDate(row.dataScadenta),
+  },
+  {
     key: "sumaFacturata",
     label: "Facturat",
     align: "right",

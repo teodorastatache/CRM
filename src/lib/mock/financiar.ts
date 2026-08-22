@@ -6,6 +6,7 @@ export type IncasariRow = {
   id: string;
   referinta: string;
   dataFacturii: string;
+  dataScadenta: string;
   sumaFacturata: number;
   sumaIncasata: number;
   status: IncasariStatus;
@@ -13,36 +14,43 @@ export type IncasariRow = {
 
 export type PlatformaIncasari = "emag" | "trendyol" | "site" | "fulfillment" | "call-center";
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export const platformIncasari: Record<PlatformaIncasari, IncasariRow[]> = {
   emag: [
-    { id: "FE-3391", referinta: "Comenzi eMAG 05-11 aug", dataFacturii: "2026-08-12", sumaFacturata: 48210, sumaIncasata: 48210, status: "încasat" },
-    { id: "FE-3402", referinta: "Comenzi eMAG 12-18 aug", dataFacturii: "2026-08-19", sumaFacturata: 51940, sumaIncasata: 51940, status: "încasat" },
-    { id: "FE-3418", referinta: "Comenzi eMAG 19-25 aug", dataFacturii: "2026-08-26", sumaFacturata: 46870, sumaIncasata: 0, status: "neîncasat" },
-    { id: "FE-3420", referinta: "Comenzi eMAG 26 aug-01 sep", dataFacturii: "2026-09-02", sumaFacturata: 53100, sumaIncasata: 21000, status: "parțial" },
+    { id: "FE-3391", referinta: "Comenzi eMAG 05-11 aug", dataFacturii: "2026-08-12", dataScadenta: addDays("2026-08-12", 6), sumaFacturata: 48210, sumaIncasata: 48210, status: "încasat" },
+    { id: "FE-3402", referinta: "Comenzi eMAG 12-18 aug", dataFacturii: "2026-08-19", dataScadenta: addDays("2026-08-19", 6), sumaFacturata: 51940, sumaIncasata: 51940, status: "încasat" },
+    { id: "FE-3418", referinta: "Comenzi eMAG 19-25 aug", dataFacturii: "2026-08-26", dataScadenta: addDays("2026-08-26", 6), sumaFacturata: 46870, sumaIncasata: 0, status: "neîncasat" },
+    { id: "FE-3420", referinta: "Comenzi eMAG 26 aug-01 sep", dataFacturii: "2026-09-02", dataScadenta: addDays("2026-09-02", 6), sumaFacturata: 53100, sumaIncasata: 21000, status: "parțial" },
   ],
   trendyol: [
-    { id: "FT-1102", referinta: "Comenzi Trendyol iulie", dataFacturii: "2026-08-05", sumaFacturata: 27430, sumaIncasata: 27430, status: "încasat" },
-    { id: "FT-1118", referinta: "Comenzi Trendyol 01-15 aug", dataFacturii: "2026-08-16", sumaFacturata: 15320, sumaIncasata: 15320, status: "încasat" },
-    { id: "FT-1124", referinta: "Comenzi Trendyol 16-31 aug", dataFacturii: "2026-09-01", sumaFacturata: 12680, sumaIncasata: 0, status: "neîncasat" },
+    { id: "FT-1102", referinta: "Comenzi Trendyol iulie", dataFacturii: "2026-08-05", dataScadenta: addDays("2026-08-05", 6), sumaFacturata: 27430, sumaIncasata: 27430, status: "încasat" },
+    { id: "FT-1118", referinta: "Comenzi Trendyol 01-15 aug", dataFacturii: "2026-08-16", dataScadenta: addDays("2026-08-16", 6), sumaFacturata: 15320, sumaIncasata: 15320, status: "încasat" },
+    { id: "FT-1124", referinta: "Comenzi Trendyol 16-31 aug", dataFacturii: "2026-09-01", dataScadenta: addDays("2026-09-01", 6), sumaFacturata: 12680, sumaIncasata: 0, status: "neîncasat" },
   ],
   site: [
-    { id: "FS-8801", referinta: "Comenzi Shopify iulie", dataFacturii: "2026-08-01", sumaFacturata: 118340, sumaIncasata: 118340, status: "încasat" },
-    { id: "FS-8830", referinta: "Comenzi Shopify 01-17 aug", dataFacturii: "2026-08-18", sumaFacturata: 64200, sumaIncasata: 64200, status: "încasat" },
-    { id: "FS-8847", referinta: "Comenzi Shopify 18 aug-prezent", dataFacturii: "2026-08-18", sumaFacturata: 34910, sumaIncasata: 12000, status: "parțial" },
+    { id: "FS-8801", referinta: "Comenzi Shopify iulie", dataFacturii: "2026-08-01", dataScadenta: addDays("2026-08-01", 6), sumaFacturata: 118340, sumaIncasata: 118340, status: "încasat" },
+    { id: "FS-8830", referinta: "Comenzi Shopify 01-17 aug", dataFacturii: "2026-08-18", dataScadenta: addDays("2026-08-18", 6), sumaFacturata: 64200, sumaIncasata: 64200, status: "încasat" },
+    { id: "FS-8847", referinta: "Comenzi Shopify 18 aug-prezent", dataFacturii: "2026-08-18", dataScadenta: addDays("2026-08-18", 6), sumaFacturata: 34910, sumaIncasata: 12000, status: "parțial" },
   ],
   fulfillment: fulfillmentClients.map((client, i) => ({
     id: `FF-${5510 + i}`,
     referinta: `Servicii fulfillment ${client.name} · august`,
     dataFacturii: "2026-08-01",
+    dataScadenta: addDays("2026-08-01", 6),
     sumaFacturata: 6200 + i * 1450,
     sumaIncasata: i % 3 === 0 ? 0 : 6200 + i * 1450,
     status: i % 3 === 0 ? "neîncasat" : "încasat",
   })),
   "call-center": [
-    { id: "FC-2201", referinta: "Servicii call center FitZone Store · august", dataFacturii: "2026-08-01", sumaFacturata: 4800, sumaIncasata: 4800, status: "încasat" },
-    { id: "FC-2202", referinta: "Servicii call center HomeDecor Plus · august", dataFacturii: "2026-08-01", sumaFacturata: 3600, sumaIncasata: 3600, status: "încasat" },
-    { id: "FC-2203", referinta: "Servicii call center BabyCare Comfort · august", dataFacturii: "2026-08-01", sumaFacturata: 3100, sumaIncasata: 0, status: "neîncasat" },
-    { id: "FC-2204", referinta: "Servicii call center GreenGarden Deco · august", dataFacturii: "2026-08-01", sumaFacturata: 2450, sumaIncasata: 1200, status: "parțial" },
+    { id: "FC-2201", referinta: "Servicii call center FitZone Store · august", dataFacturii: "2026-08-01", dataScadenta: addDays("2026-08-01", 6), sumaFacturata: 4800, sumaIncasata: 4800, status: "încasat" },
+    { id: "FC-2202", referinta: "Servicii call center HomeDecor Plus · august", dataFacturii: "2026-08-01", dataScadenta: addDays("2026-08-01", 6), sumaFacturata: 3600, sumaIncasata: 3600, status: "încasat" },
+    { id: "FC-2203", referinta: "Servicii call center BabyCare Comfort · august", dataFacturii: "2026-08-01", dataScadenta: addDays("2026-08-01", 6), sumaFacturata: 3100, sumaIncasata: 0, status: "neîncasat" },
+    { id: "FC-2204", referinta: "Servicii call center GreenGarden Deco · august", dataFacturii: "2026-08-01", dataScadenta: addDays("2026-08-01", 6), sumaFacturata: 2450, sumaIncasata: 1200, status: "parțial" },
   ],
 };
 
