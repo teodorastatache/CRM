@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  classifyByInvoicePdf,
   classifyMentions,
+  classifyOblioInvoice,
   getOblioToken,
   isOblioConfigured,
   mapWithConcurrency,
@@ -17,6 +17,7 @@ type RawInvoice = {
   seriesName: string;
   number: string;
   mentions?: string;
+  total: string;
   link?: string;
   client?: { name?: string };
 };
@@ -90,17 +91,19 @@ export async function GET() {
     const pdfResults = await mapWithConcurrency(unclassifiedAfterMentions, 8, async (inv) => {
       const id = `${inv.seriesName}${inv.number}`;
       const clientName = inv.client?.name ?? "(fără nume client)";
-      if (!inv.link) {
-        return { id, clientName, hasLink: false, platform: "altele" as OblioInvoicePlatform, error: null };
-      }
       try {
-        const platform = await classifyByInvoicePdf(inv.link);
-        return { id, clientName, hasLink: true, platform, error: null };
+        const platform = await classifyOblioInvoice({
+          mentions: inv.mentions ?? "",
+          total: Number(inv.total),
+          clientName,
+          link: inv.link,
+        });
+        return { id, clientName, hasLink: Boolean(inv.link), platform, error: null };
       } catch (err) {
         return {
           id,
           clientName,
-          hasLink: true,
+          hasLink: Boolean(inv.link),
           platform: "altele" as OblioInvoicePlatform,
           error: err instanceof Error ? err.message : String(err),
         };

@@ -144,8 +144,42 @@ export async function classifyByInvoicePdf(link: string): Promise<OblioInvoicePl
   const { default: pdfParse } = await import("pdf-parse/lib/pdf-parse.js");
   const { text } = await pdfParse(buffer);
   const t = text.toLowerCase();
-  if (t.includes("procesare comenzi") || t.includes("depozitare")) return "fulfillment";
+  if (t.includes("procesare comenzi") || t.includes("depozitare") || t.includes("transport exped")) {
+    return "fulfillment";
+  }
   if (t.includes("contactare") || t.includes("marketing")) return "call-center";
+  return "altele";
+}
+
+// Clienți confirmați manual când textul facturii nu se potrivește cu niciun cuvânt cheie cunoscut.
+const KNOWN_CLIENT_PLATFORM_OVERRIDES: Record<string, OblioInvoicePlatform> = {
+  "DNG-E COMMERCE S.R.L.": "fulfillment",
+};
+
+export async function classifyOblioInvoice(inv: {
+  mentions: string;
+  total: number;
+  clientName: string;
+  link?: string;
+}): Promise<OblioInvoicePlatform> {
+  const mentionsPlatform = classifyMentions(inv.mentions);
+  if (mentionsPlatform !== "altele") return mentionsPlatform;
+
+  // Storno-urile (facturi de anulare, cu sumă negativă) nu au mențiuni utile,
+  // dar aparțin platformei comenzii originale — pe eMAG, în cazurile văzute până acum.
+  if (inv.total < 0) return "emag";
+
+  const override = KNOWN_CLIENT_PLATFORM_OVERRIDES[inv.clientName.toUpperCase()];
+  if (override) return override;
+
+  if (inv.link) {
+    try {
+      return await classifyByInvoicePdf(inv.link);
+    } catch {
+      // Nu am putut citi PDF-ul facturii — rămâne neclasificată.
+    }
+  }
+
   return "altele";
 }
 
@@ -204,14 +238,12 @@ export async function getOblioInvoiceSummaries(
   const summaries = await mapWithConcurrency(active, 8, async (inv) => {
       const total = Number(inv.total);
       const collected = inv.collected === "1";
-      let platform = classifyMentions(inv.mentions ?? "");
-      if (platform === "altele" && inv.link) {
-        try {
-          platform = await classifyByInvoicePdf(inv.link);
-        } catch {
-          // Nu am putut citi PDF-ul facturii — rămâne neclasificată.
-        }
-      }
+      const platform = await classifyOblioInvoice({
+        mentions: inv.mentions ?? "",
+        total,
+        clientName: inv.client?.name ?? "",
+        link: inv.link,
+      });
       return {
         id: `${inv.seriesName}${inv.number}`,
         referinta: inv.client?.name ?? "—",
