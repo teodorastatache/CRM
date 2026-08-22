@@ -4,6 +4,7 @@ import { getOblioInvoiceSummaries } from "@/lib/oblio-api";
 import { FacturiIncasariClient } from "./client";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");

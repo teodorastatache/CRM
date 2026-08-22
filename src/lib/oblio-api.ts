@@ -114,8 +114,21 @@ type RawOblioInvoice = {
   issueDate: string;
   total: string;
   mentions: string;
+  link?: string;
   client?: { name?: string };
 };
+
+async function classifyByInvoicePdf(link: string): Promise<OblioInvoicePlatform> {
+  const res = await fetch(link, { cache: "no-store" });
+  if (!res.ok) return "altele";
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const { default: pdfParse } = await import("pdf-parse");
+  const { text } = await pdfParse(buffer);
+  const t = text.toLowerCase();
+  if (t.includes("procesare comenzi")) return "fulfillment";
+  if (t.includes("contactare") || t.includes("marketing")) return "call-center";
+  return "altele";
+}
 
 type RawOblioListResponse = {
   status: number;
@@ -153,11 +166,20 @@ export async function getOblioInvoiceSummaries(
     if (data.length < limit) break;
   }
 
-  return invoices
-    .filter((inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1")
-    .map((inv) => {
+  const active = invoices.filter((inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1");
+
+  const summaries = await Promise.all(
+    active.map(async (inv) => {
       const total = Number(inv.total);
       const collected = inv.collected === "1";
+      let platform = classifyMentions(inv.mentions ?? "");
+      if (platform === "altele" && inv.link) {
+        try {
+          platform = await classifyByInvoicePdf(inv.link);
+        } catch {
+          // Nu am putut citi PDF-ul facturii — rămâne neclasificată.
+        }
+      }
       return {
         id: `${inv.seriesName}${inv.number}`,
         referinta: inv.client?.name ?? "—",
@@ -165,7 +187,10 @@ export async function getOblioInvoiceSummaries(
         sumaFacturata: total,
         sumaIncasata: collected ? total : 0,
         status: collected ? "încasat" : "neîncasat",
-        platform: classifyMentions(inv.mentions ?? ""),
-      };
-    });
+        platform,
+      } satisfies OblioInvoiceSummary;
+    })
+  );
+
+  return summaries;
 }
