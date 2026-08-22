@@ -115,10 +115,23 @@ export type RawOblioInvoice = {
   issueDate: string;
   dueDate?: string;
   total: string;
+  currency?: string;
+  exchangeRate?: string;
   mentions: string;
   link?: string;
   client?: { name?: string };
 };
+
+// Oblio dă mereu "total" în moneda facturii, nu convertit — pentru facturile
+// în altă monedă decât RON (rare, dar reale) trebuie înmulțit cu cursul
+// valutar trimis de API, altfel o sumă mică în HUF/EUR poate umfla enorm
+// totalul (ex. 10.089 HUF citit ca "10.089 RON" în loc de 149,59 RON reali).
+export function invoiceTotalRon(inv: { total: string; currency?: string; exchangeRate?: string }): number {
+  const total = Number(inv.total);
+  if (!inv.currency || inv.currency === "RON") return total;
+  const rate = Number(inv.exchangeRate);
+  return rate > 0 ? total * rate : total;
+}
 
 export async function mapWithConcurrency<T, R>(
   items: T[],
@@ -311,7 +324,7 @@ export async function getOblioInvoiceSummaries(
   const active = result.invoices.filter((inv) => inv.canceled !== "1" && inv.draft !== "1");
 
   const summaries = await mapWithConcurrency(active, 8, async (inv) => {
-      const total = Number(inv.total);
+      const total = invoiceTotalRon(inv);
       const collected = inv.collected === "1";
       const platform = await classifyOblioInvoice({
         mentions: inv.mentions ?? "",

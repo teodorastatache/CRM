@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { classifyOblioInvoice, fetchAllOblioInvoices, type OblioInvoicePlatform } from "@/lib/oblio-api";
+import {
+  classifyOblioInvoice,
+  fetchAllOblioInvoices,
+  invoiceTotalRon,
+  type OblioInvoicePlatform,
+} from "@/lib/oblio-api";
 
 const REAL_PLATFORMS = ["emag", "trendyol", "site", "fulfillment", "call-center"] as const;
 const SERVICE_PLATFORMS = new Set<OblioInvoicePlatform>(["fulfillment", "call-center"]);
@@ -40,7 +45,7 @@ export async function syncOblioMonth(year: number, month: number): Promise<SyncM
   const serviceInvoiceIds: string[] = [];
 
   for (const inv of active) {
-    const total = Number(inv.total);
+    const total = invoiceTotalRon(inv);
     const collected = inv.collected === "1";
     const platform = await classifyOblioInvoice({
       mentions: inv.mentions ?? "",

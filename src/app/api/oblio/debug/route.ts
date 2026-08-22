@@ -3,6 +3,7 @@ import {
   classifyMentions,
   classifyOblioInvoice,
   fetchAllOblioInvoices,
+  invoiceTotalRon,
   isOblioConfigured,
   mapWithConcurrency,
   type OblioInvoicePlatform,
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
     }
 
     const active = result.invoices.filter((inv) => inv.canceled !== "1" && inv.draft !== "1");
-    const activeTotalSum = active.reduce((sum, inv) => sum + Number(inv.total), 0);
+    const activeTotalSum = active.reduce((sum, inv) => sum + invoiceTotalRon(inv), 0);
 
     const platformCountsAfterMentions = emptyPlatformRecord(() => 0);
     const platformSumsAfterMentions = emptyPlatformRecord(() => 0);
@@ -71,14 +72,14 @@ export async function GET(request: Request) {
     for (const inv of active) {
       const platform = classifyMentions(inv.mentions ?? "");
       platformCountsAfterMentions[platform] += 1;
-      platformSumsAfterMentions[platform] += Number(inv.total);
+      platformSumsAfterMentions[platform] += invoiceTotalRon(inv);
       if (platform === "altele") unclassifiedAfterMentions.push(inv);
     }
 
     const pdfResults = await mapWithConcurrency(unclassifiedAfterMentions, 8, async (inv) => {
       const id = `${inv.seriesName}${inv.number}`;
       const clientName = inv.client?.name ?? "(fără nume client)";
-      const total = Number(inv.total);
+      const total = invoiceTotalRon(inv);
       try {
         const platform = await classifyOblioInvoice({
           mentions: inv.mentions ?? "",
