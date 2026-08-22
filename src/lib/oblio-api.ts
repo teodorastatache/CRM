@@ -104,7 +104,7 @@ export function classifyMentions(mentions: string): OblioInvoicePlatform {
   return "altele";
 }
 
-type RawOblioInvoice = {
+export type RawOblioInvoice = {
   draft: string;
   canceled: string;
   collected: string;
@@ -189,16 +189,28 @@ type RawOblioListResponse = {
   data?: RawOblioInvoice[];
 };
 
-export async function getOblioInvoiceSummaries(
+export type FetchAllOblioInvoicesResult = {
+  invoices: RawOblioInvoice[];
+  totalScanned: number;
+  duplicatesSkipped: number;
+  hitPageCap: boolean;
+  pageErrors: { page: number; status?: number; statusMessage?: string }[];
+};
+
+export async function fetchAllOblioInvoices(
   issuedAfter: string,
   issuedBefore: string
-): Promise<OblioInvoiceSummary[] | null> {
+): Promise<FetchAllOblioInvoicesResult | null> {
   const credentials = getCredentials();
   if (!credentials) return null;
 
   const token = await getOblioToken();
   const limit = 100;
+  const seenIds = new Set<string>();
   const invoices: RawOblioInvoice[] = [];
+  const pageErrors: { page: number; status?: number; statusMessage?: string }[] = [];
+  let duplicatesSkipped = 0;
+  let hitPageCap = true;
 
   // Limita de pagini e doar o plasă de siguranță împotriva unei bucle infinite —
   // paginarea reală se oprește când o pagină întoarce mai puține facturi decât limita.
@@ -207,10 +219,11 @@ export async function getOblioInvoiceSummaries(
   const maxPages = 100;
 
   for (let page = 0; page < maxPages; page++) {
-    if (page > 0) await new Promise((resolve) => setTimeout(resolve, 150));
+    if (page > 0) await new Promise((resolve) => setTimeout(resolve, 300));
     let raw: RawOblioListResponse | null = null;
+    let lastError: { status?: number; statusMessage?: string } = {};
 
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 4; attempt++) {
       const candidate = (await fetchOblioPage(token, credentials.cif, {
         issuedAfter,
         issuedBefore,
@@ -224,33 +237,52 @@ export async function getOblioInvoiceSummaries(
         raw = candidate;
         break;
       }
-      // Posibil rate-limit temporar — reîncercăm cu backoff înainte să renunțăm.
-      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      lastError = { status: candidate.status, statusMessage: candidate.statusMessage };
+      // Rate-limit (429) sau eroare temporară — reîncercăm cu backoff crescător.
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1500 * 2 ** attempt, 8000)));
     }
 
     if (!raw) {
-      // Nu am putut citi această pagină — păstrăm ce am adunat până acum
-      // în loc să aruncăm toate datele reale strânse deja.
+      // Nu am putut citi această pagină nici după reîncercări — păstrăm ce am
+      // adunat până acum în loc să aruncăm toate datele reale strânse deja.
+      pageErrors.push({ page, ...lastError });
+      hitPageCap = false;
       break;
     }
 
     const data = raw.data ?? [];
-    invoices.push(...data);
-    if (data.length < limit) break;
+    // Contul are volum mare, iar facturile noi apărute în timp ce paginăm pot
+    // deplasa offset-urile paginilor următoare, ducând la aceeași factură
+    // citită de două ori — deduplicăm după serie+număr pe măsură ce le adunăm.
+    for (const inv of data) {
+      const id = `${inv.seriesName}${inv.number}`;
+      if (seenIds.has(id)) {
+        duplicatesSkipped += 1;
+        continue;
+      }
+      seenIds.add(id);
+      invoices.push(inv);
+    }
+
+    if (data.length < limit) {
+      hitPageCap = false;
+      break;
+    }
   }
 
-  // Contul are volum mare, iar facturile noi apărute în timp ce paginăm pot
-  // deplasa offset-urile paginilor următoare, ducând la aceeași factură
-  // citită de două ori — deduplicăm după serie+număr înainte de a calcula orice sumă.
-  const seenIds = new Set<string>();
-  const deduped = invoices.filter((inv) => {
-    const id = `${inv.seriesName}${inv.number}`;
-    if (seenIds.has(id)) return false;
-    seenIds.add(id);
-    return true;
-  });
+  return { invoices, totalScanned: invoices.length, duplicatesSkipped, hitPageCap, pageErrors };
+}
 
-  const active = deduped.filter((inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1");
+export async function getOblioInvoiceSummaries(
+  issuedAfter: string,
+  issuedBefore: string
+): Promise<OblioInvoiceSummary[] | null> {
+  const result = await fetchAllOblioInvoices(issuedAfter, issuedBefore);
+  if (!result) return null;
+
+  const active = result.invoices.filter(
+    (inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1"
+  );
 
   const summaries = await mapWithConcurrency(active, 8, async (inv) => {
       const total = Number(inv.total);

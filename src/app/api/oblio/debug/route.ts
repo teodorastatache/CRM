@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   classifyMentions,
   classifyOblioInvoice,
-  getOblioToken,
+  fetchAllOblioInvoices,
   isOblioConfigured,
   mapWithConcurrency,
   type OblioInvoicePlatform,
@@ -10,21 +10,6 @@ import {
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-
-const OBLIO_BASE = "https://www.oblio.eu/api";
-
-type RawInvoice = {
-  seriesName: string;
-  number: string;
-  mentions?: string;
-  total: string;
-  canceled?: string;
-  storno?: string;
-  draft?: string;
-  link?: string;
-  client?: { name?: string };
-};
-type RawListResponse = { status: number; statusMessage?: string; data?: RawInvoice[] };
 
 export async function GET() {
   if (!isOblioConfigured()) {
@@ -40,12 +25,19 @@ export async function GET() {
     const startOfMonth = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-01`;
     const today = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}`;
 
-    const token = await getOblioToken();
-    const cif = process.env.OBLIO_CIF!;
-    const limit = 100;
-    let totalScanned = 0;
+    const result = await fetchAllOblioInvoices(startOfMonth, today);
+    if (!result) {
+      return NextResponse.json(
+        { error: "Lipsesc OBLIO_EMAIL, OBLIO_SECRET sau OBLIO_CIF din variabilele de mediu." },
+        { status: 500 }
+      );
+    }
 
-    const unclassifiedAfterMentions: RawInvoice[] = [];
+    const active = result.invoices.filter(
+      (inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1"
+    );
+    const activeTotalSum = active.reduce((sum, inv) => sum + Number(inv.total), 0);
+
     const platformCountsAfterMentions: Record<OblioInvoicePlatform, number> = {
       emag: 0,
       trendyol: 0,
@@ -54,62 +46,11 @@ export async function GET() {
       "call-center": 0,
       altele: 0,
     };
-
-    const pageErrors: { page: number; status?: number; statusMessage?: string }[] = [];
-    let activeTotalSum = 0;
-    let hitPageCap = true;
-    let duplicatesSkipped = 0;
-    const seenIds = new Set<string>();
-    const maxPages = 100;
-
-    for (let page = 0; page < maxPages; page++) {
-      if (page > 0) await new Promise((resolve) => setTimeout(resolve, 150));
-      const url = new URL(`${OBLIO_BASE}/docs/invoice/list`);
-      url.searchParams.set("cif", cif);
-      url.searchParams.set("issuedAfter", startOfMonth);
-      url.searchParams.set("issuedBefore", today);
-      url.searchParams.set("limitPerPage", String(limit));
-      url.searchParams.set("offset", String(page * limit));
-      url.searchParams.set("orderBy", "id");
-      url.searchParams.set("orderDir", "desc");
-
-      const res = await fetch(url.toString(), {
-        cache: "no-store",
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      });
-      const raw = (await res.json()) as RawListResponse;
-
-      if (raw.status !== 200) {
-        pageErrors.push({ page, status: raw.status, statusMessage: raw.statusMessage });
-        hitPageCap = false;
-        break;
-      }
-
-      const data = raw.data ?? [];
-
-      for (const inv of data) {
-        const id = `${inv.seriesName}${inv.number}`;
-        if (seenIds.has(id)) {
-          duplicatesSkipped += 1;
-          continue;
-        }
-        seenIds.add(id);
-        totalScanned += 1;
-
-        const platform = classifyMentions(inv.mentions ?? "");
-        platformCountsAfterMentions[platform] += 1;
-        if (platform === "altele") unclassifiedAfterMentions.push(inv);
-
-        if (inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1") {
-          activeTotalSum += Number(inv.total);
-        }
-      }
-
-      if (data.length < limit) {
-        hitPageCap = false;
-        break;
-      }
-    }
+    const unclassifiedAfterMentions = active.filter((inv) => {
+      const platform = classifyMentions(inv.mentions ?? "");
+      platformCountsAfterMentions[platform] += 1;
+      return platform === "altele";
+    });
 
     const pdfResults = await mapWithConcurrency(unclassifiedAfterMentions, 8, async (inv) => {
       const id = `${inv.seriesName}${inv.number}`;
@@ -145,11 +86,11 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
-      totalScanned,
-      duplicatesSkipped,
-      hitPageCap,
+      totalScanned: result.totalScanned,
+      duplicatesSkipped: result.duplicatesSkipped,
+      hitPageCap: result.hitPageCap,
       activeTotalSum,
-      pageErrors,
+      pageErrors: result.pageErrors,
       platformCountsAfterMentions,
       unclassifiedAfterMentionsCount: unclassifiedAfterMentions.length,
       platformCountsAfterPdf,
