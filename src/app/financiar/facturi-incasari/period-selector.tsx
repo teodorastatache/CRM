@@ -42,6 +42,9 @@ export function PeriodSelector({
     params.set("month", String(merged.month));
     params.set("day", merged.day);
     router.push(`${pathname}?${params.toString()}`);
+    // Pagina e force-dynamic, dar navigarea doar prin searchParams poate
+    // reutiliza cache-ul de rutare al clientului — forțăm un refresh real.
+    router.refresh();
   }
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getUTCFullYear() - i);
