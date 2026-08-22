@@ -118,6 +118,25 @@ type RawOblioInvoice = {
   client?: { name?: string };
 };
 
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+
+  async function worker() {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
 export async function classifyByInvoicePdf(link: string): Promise<OblioInvoicePlatform> {
   const res = await fetch(link, { cache: "no-store" });
   if (!res.ok) return "altele";
@@ -182,8 +201,7 @@ export async function getOblioInvoiceSummaries(
 
   const active = invoices.filter((inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1");
 
-  const summaries = await Promise.all(
-    active.map(async (inv) => {
+  const summaries = await mapWithConcurrency(active, 8, async (inv) => {
       const total = Number(inv.total);
       const collected = inv.collected === "1";
       let platform = classifyMentions(inv.mentions ?? "");
@@ -203,8 +221,7 @@ export async function getOblioInvoiceSummaries(
         status: collected ? "încasat" : "neîncasat",
         platform,
       } satisfies OblioInvoiceSummary;
-    })
-  );
+  });
 
   return summaries;
 }

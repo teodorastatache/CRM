@@ -4,6 +4,7 @@ import {
   classifyMentions,
   getOblioToken,
   isOblioConfigured,
+  mapWithConcurrency,
   type OblioInvoicePlatform,
 } from "@/lib/oblio-api";
 
@@ -86,34 +87,25 @@ export async function GET() {
       if (data.length < limit) break;
     }
 
-    const pdfResults: {
-      id: string;
-      clientName: string;
-      hasLink: boolean;
-      platform: OblioInvoicePlatform;
-      error: string | null;
-    }[] = [];
-
-    for (const inv of unclassifiedAfterMentions) {
+    const pdfResults = await mapWithConcurrency(unclassifiedAfterMentions, 8, async (inv) => {
       const id = `${inv.seriesName}${inv.number}`;
       const clientName = inv.client?.name ?? "(fără nume client)";
       if (!inv.link) {
-        pdfResults.push({ id, clientName, hasLink: false, platform: "altele", error: null });
-        continue;
+        return { id, clientName, hasLink: false, platform: "altele" as OblioInvoicePlatform, error: null };
       }
       try {
         const platform = await classifyByInvoicePdf(inv.link);
-        pdfResults.push({ id, clientName, hasLink: true, platform, error: null });
+        return { id, clientName, hasLink: true, platform, error: null };
       } catch (err) {
-        pdfResults.push({
+        return {
           id,
           clientName,
           hasLink: true,
-          platform: "altele",
+          platform: "altele" as OblioInvoicePlatform,
           error: err instanceof Error ? err.message : String(err),
-        });
+        };
       }
-    }
+    });
 
     const platformCountsAfterPdf: Record<OblioInvoicePlatform, number> = { ...platformCountsAfterMentions };
     platformCountsAfterPdf.altele = 0;
