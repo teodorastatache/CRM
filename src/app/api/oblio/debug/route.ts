@@ -58,6 +58,8 @@ export async function GET() {
     const pageErrors: { page: number; status?: number; statusMessage?: string }[] = [];
     let activeTotalSum = 0;
     let hitPageCap = true;
+    let duplicatesSkipped = 0;
+    const seenIds = new Set<string>();
     const maxPages = 100;
 
     for (let page = 0; page < maxPages; page++) {
@@ -84,9 +86,16 @@ export async function GET() {
       }
 
       const data = raw.data ?? [];
-      totalScanned += data.length;
 
       for (const inv of data) {
+        const id = `${inv.seriesName}${inv.number}`;
+        if (seenIds.has(id)) {
+          duplicatesSkipped += 1;
+          continue;
+        }
+        seenIds.add(id);
+        totalScanned += 1;
+
         const platform = classifyMentions(inv.mentions ?? "");
         platformCountsAfterMentions[platform] += 1;
         if (platform === "altele") unclassifiedAfterMentions.push(inv);
@@ -137,6 +146,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       totalScanned,
+      duplicatesSkipped,
       hitPageCap,
       activeTotalSum,
       pageErrors,

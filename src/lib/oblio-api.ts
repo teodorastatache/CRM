@@ -239,7 +239,18 @@ export async function getOblioInvoiceSummaries(
     if (data.length < limit) break;
   }
 
-  const active = invoices.filter((inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1");
+  // Contul are volum mare, iar facturile noi apărute în timp ce paginăm pot
+  // deplasa offset-urile paginilor următoare, ducând la aceeași factură
+  // citită de două ori — deduplicăm după serie+număr înainte de a calcula orice sumă.
+  const seenIds = new Set<string>();
+  const deduped = invoices.filter((inv) => {
+    const id = `${inv.seriesName}${inv.number}`;
+    if (seenIds.has(id)) return false;
+    seenIds.add(id);
+    return true;
+  });
+
+  const active = deduped.filter((inv) => inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1");
 
   const summaries = await mapWithConcurrency(active, 8, async (inv) => {
       const total = Number(inv.total);
