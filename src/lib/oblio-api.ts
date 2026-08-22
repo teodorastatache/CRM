@@ -200,8 +200,14 @@ export async function getOblioInvoiceSummaries(
   const limit = 100;
   const invoices: RawOblioInvoice[] = [];
 
-  for (let page = 0; page < 20; page++) {
-    if (page > 0) await new Promise((resolve) => setTimeout(resolve, 200));
+  // Limita de pagini e doar o plasă de siguranță împotriva unei bucle infinite —
+  // paginarea reală se oprește când o pagină întoarce mai puține facturi decât limita.
+  // Cu o limită prea mică (fostă 20 = 2000 facturi), lunile cu volum mare erau
+  // trunchiate silențios, fără nicio eroare vizibilă.
+  const maxPages = 100;
+
+  for (let page = 0; page < maxPages; page++) {
+    if (page > 0) await new Promise((resolve) => setTimeout(resolve, 150));
     let raw: RawOblioListResponse | null = null;
 
     for (let attempt = 0; attempt < 3; attempt++) {

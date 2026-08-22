@@ -18,6 +18,9 @@ type RawInvoice = {
   number: string;
   mentions?: string;
   total: string;
+  canceled?: string;
+  storno?: string;
+  draft?: string;
   link?: string;
   client?: { name?: string };
 };
@@ -53,9 +56,12 @@ export async function GET() {
     };
 
     const pageErrors: { page: number; status?: number; statusMessage?: string }[] = [];
+    let activeTotalSum = 0;
+    let hitPageCap = true;
+    const maxPages = 100;
 
-    for (let page = 0; page < 20; page++) {
-      if (page > 0) await new Promise((resolve) => setTimeout(resolve, 200));
+    for (let page = 0; page < maxPages; page++) {
+      if (page > 0) await new Promise((resolve) => setTimeout(resolve, 150));
       const url = new URL(`${OBLIO_BASE}/docs/invoice/list`);
       url.searchParams.set("cif", cif);
       url.searchParams.set("issuedAfter", startOfMonth);
@@ -73,6 +79,7 @@ export async function GET() {
 
       if (raw.status !== 200) {
         pageErrors.push({ page, status: raw.status, statusMessage: raw.statusMessage });
+        hitPageCap = false;
         break;
       }
 
@@ -83,9 +90,16 @@ export async function GET() {
         const platform = classifyMentions(inv.mentions ?? "");
         platformCountsAfterMentions[platform] += 1;
         if (platform === "altele") unclassifiedAfterMentions.push(inv);
+
+        if (inv.canceled !== "1" && inv.storno !== "1" && inv.draft !== "1") {
+          activeTotalSum += Number(inv.total);
+        }
       }
 
-      if (data.length < limit) break;
+      if (data.length < limit) {
+        hitPageCap = false;
+        break;
+      }
     }
 
     const pdfResults = await mapWithConcurrency(unclassifiedAfterMentions, 8, async (inv) => {
@@ -123,6 +137,8 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       totalScanned,
+      hitPageCap,
+      activeTotalSum,
       pageErrors,
       platformCountsAfterMentions,
       unclassifiedAfterMentionsCount: unclassifiedAfterMentions.length,
