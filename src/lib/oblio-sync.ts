@@ -25,7 +25,12 @@ export type SyncMonthResult = {
   serviceInvoiceCount: number;
 };
 
-export async function syncOblioMonth(year: number, month: number): Promise<SyncMonthResult | null> {
+export async function syncOblioMonth(
+  year: number,
+  month: number,
+  options?: { skipServiceInvoices?: boolean }
+): Promise<SyncMonthResult | null> {
+  const skipServiceInvoices = options?.skipServiceInvoices ?? false;
   const routeStart = Date.now();
   const issuedAfter = `${year}-${pad(month)}-01`;
   const issuedBefore = `${year}-${pad(month)}-${pad(lastDayOfMonth(year, month))}`;
@@ -69,6 +74,7 @@ export async function syncOblioMonth(year: number, month: number): Promise<SyncM
     if (SERVICE_PLATFORMS.has(platform)) {
       const id = `${inv.seriesName}${inv.number}`;
       serviceInvoiceIds.push(id);
+      if (skipServiceInvoices) return;
       await prisma.oblioServiceInvoice.upsert({
         where: { id },
         create: {
