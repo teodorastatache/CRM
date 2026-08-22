@@ -196,12 +196,14 @@ export type FetchAllOblioInvoicesResult = {
   totalScanned: number;
   duplicatesSkipped: number;
   hitPageCap: boolean;
+  timedOut: boolean;
   pageErrors: { page: number; status?: number; statusMessage?: string }[];
 };
 
 export async function fetchAllOblioInvoices(
   issuedAfter: string,
-  issuedBefore: string
+  issuedBefore: string,
+  timeBudgetMs = 35000
 ): Promise<FetchAllOblioInvoicesResult | null> {
   const credentials = getCredentials();
   if (!credentials) return null;
@@ -213,6 +215,8 @@ export async function fetchAllOblioInvoices(
   const pageErrors: { page: number; status?: number; statusMessage?: string }[] = [];
   let duplicatesSkipped = 0;
   let hitPageCap = true;
+  let timedOut = false;
+  const deadline = Date.now() + timeBudgetMs;
 
   // Limita de pagini e doar o plasă de siguranță împotriva unei bucle infinite —
   // paginarea reală se oprește când o pagină întoarce mai puține facturi decât limita.
@@ -221,6 +225,13 @@ export async function fetchAllOblioInvoices(
   const maxPages = 100;
 
   for (let page = 0; page < maxPages; page++) {
+    if (Date.now() > deadline) {
+      // Bugetul de timp intern a expirat — întoarcem ce am adunat până acum
+      // în loc să riscăm ca Vercel să omoare funcția cu un 504 fără răspuns.
+      timedOut = true;
+      hitPageCap = false;
+      break;
+    }
     if (page > 0) await new Promise((resolve) => setTimeout(resolve, 300));
     let raw: RawOblioListResponse | null = null;
     let lastError: { status?: number; statusMessage?: string } = {};
@@ -272,7 +283,7 @@ export async function fetchAllOblioInvoices(
     }
   }
 
-  return { invoices, totalScanned: invoices.length, duplicatesSkipped, hitPageCap, pageErrors };
+  return { invoices, totalScanned: invoices.length, duplicatesSkipped, hitPageCap, timedOut, pageErrors };
 }
 
 // Refacerea completă (paginare prin toate facturile + citire PDF pentru cele

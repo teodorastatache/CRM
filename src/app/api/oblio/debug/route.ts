@@ -87,6 +87,7 @@ export async function GET() {
       totalScanned: result.totalScanned,
       duplicatesSkipped: result.duplicatesSkipped,
       hitPageCap: result.hitPageCap,
+      timedOut: result.timedOut,
       activeTotalSum,
       pageErrors: result.pageErrors,
       platformCountsAfterMentions,
