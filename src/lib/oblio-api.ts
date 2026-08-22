@@ -176,6 +176,13 @@ const KNOWN_CLIENT_PLATFORM_OVERRIDES: Record<string, OblioInvoicePlatform> = {
   "SERGIU MULTISERV S.R.L.": "call-center",
   "BYRUSE S.R.L.": "call-center",
   "COSTECH S.R.L.": "call-center",
+  "ADESSA BUSSINES S.R.L.": "call-center",
+  "MY UTOPIAN S.R.L.": "call-center",
+  "WINNFUTURE S.R.L.": "call-center",
+  "WINNITUDE S.R.L.": "call-center",
+  "SMARTCOMMERCE S.R.L.": "call-center",
+  "CHEF-SHOP S.R.L.": "call-center",
+  "ADDAGIO FURNITURE S.R.L.": "call-center",
 };
 
 // Formă juridică în numele clientului — prezența ei arată că e o firmă, nu o
