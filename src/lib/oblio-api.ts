@@ -221,6 +221,35 @@ export type FetchAllOblioInvoicesResult = {
   pageErrors: { page: number; status?: number; statusMessage?: string }[];
 };
 
+async function fetchOblioPageWithRetry(
+  token: string,
+  cif: string,
+  issuedAfter: string,
+  issuedBefore: string,
+  limit: number,
+  page: number
+): Promise<{ raw: RawOblioListResponse | null; lastError: { status?: number; statusMessage?: string } }> {
+  let lastError: { status?: number; statusMessage?: string } = {};
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const candidate = (await fetchOblioPage(token, cif, {
+      issuedAfter,
+      issuedBefore,
+      limitPerPage: String(limit),
+      offset: String(page * limit),
+      orderBy: "id",
+      orderDir: "desc",
+    })) as RawOblioListResponse;
+
+    if (candidate.status === 200) return { raw: candidate, lastError };
+    lastError = { status: candidate.status, statusMessage: candidate.statusMessage };
+    // Rate-limit (429) sau eroare temporară — reîncercăm cu backoff crescător.
+    await new Promise((resolve) => setTimeout(resolve, Math.min(1500 * 2 ** attempt, 8000)));
+  }
+
+  return { raw: null, lastError };
+}
+
 export async function fetchAllOblioInvoices(
   issuedAfter: string,
   issuedBefore: string,
@@ -244,8 +273,12 @@ export async function fetchAllOblioInvoices(
   // Cu o limită prea mică (fostă 20 = 2000 facturi), lunile cu volum mare erau
   // trunchiate silențios, fără nicio eroare vizibilă.
   const maxPages = 100;
+  // Cerem paginile în loturi mici, în paralel, în loc de una câte una — mult
+  // mai rapid, cu riscul (acceptat) de a lovi mai des rate-limit-ul lui Oblio,
+  // atenuat de reîncercarea automată de mai sus.
+  const batchSize = 4;
 
-  for (let page = 0; page < maxPages; page++) {
+  outer: for (let batchStart = 0; batchStart < maxPages; batchStart += batchSize) {
     if (Date.now() > deadline) {
       // Bugetul de timp intern a expirat — întoarcem ce am adunat până acum
       // în loc să riscăm ca Vercel să omoare funcția cu un 504 fără răspuns.
@@ -253,54 +286,44 @@ export async function fetchAllOblioInvoices(
       hitPageCap = false;
       break;
     }
-    if (page > 0) await new Promise((resolve) => setTimeout(resolve, 300));
-    let raw: RawOblioListResponse | null = null;
-    let lastError: { status?: number; statusMessage?: string } = {};
 
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const candidate = (await fetchOblioPage(token, credentials.cif, {
-        issuedAfter,
-        issuedBefore,
-        limitPerPage: String(limit),
-        offset: String(page * limit),
-        orderBy: "id",
-        orderDir: "desc",
-      })) as RawOblioListResponse;
+    const pagesInBatch = Math.min(batchSize, maxPages - batchStart);
+    const batchResults = await Promise.all(
+      Array.from({ length: pagesInBatch }, (_, i) =>
+        fetchOblioPageWithRetry(token, credentials.cif, issuedAfter, issuedBefore, limit, batchStart + i)
+      )
+    );
 
-      if (candidate.status === 200) {
-        raw = candidate;
-        break;
+    for (let i = 0; i < batchResults.length; i++) {
+      const page = batchStart + i;
+      const { raw, lastError } = batchResults[i];
+
+      if (!raw) {
+        // Nu am putut citi această pagină nici după reîncercări — păstrăm ce am
+        // adunat până acum în loc să aruncăm toate datele reale strânse deja.
+        pageErrors.push({ page, ...lastError });
+        hitPageCap = false;
+        break outer;
       }
-      lastError = { status: candidate.status, statusMessage: candidate.statusMessage };
-      // Rate-limit (429) sau eroare temporară — reîncercăm cu backoff crescător.
-      await new Promise((resolve) => setTimeout(resolve, Math.min(1500 * 2 ** attempt, 8000)));
-    }
 
-    if (!raw) {
-      // Nu am putut citi această pagină nici după reîncercări — păstrăm ce am
-      // adunat până acum în loc să aruncăm toate datele reale strânse deja.
-      pageErrors.push({ page, ...lastError });
-      hitPageCap = false;
-      break;
-    }
-
-    const data = raw.data ?? [];
-    // Contul are volum mare, iar facturile noi apărute în timp ce paginăm pot
-    // deplasa offset-urile paginilor următoare, ducând la aceeași factură
-    // citită de două ori — deduplicăm după serie+număr pe măsură ce le adunăm.
-    for (const inv of data) {
-      const id = `${inv.seriesName}${inv.number}`;
-      if (seenIds.has(id)) {
-        duplicatesSkipped += 1;
-        continue;
+      const data = raw.data ?? [];
+      // Contul are volum mare, iar facturile noi apărute în timp ce paginăm pot
+      // deplasa offset-urile paginilor următoare, ducând la aceeași factură
+      // citită de două ori — deduplicăm după serie+număr pe măsură ce le adunăm.
+      for (const inv of data) {
+        const id = `${inv.seriesName}${inv.number}`;
+        if (seenIds.has(id)) {
+          duplicatesSkipped += 1;
+          continue;
+        }
+        seenIds.add(id);
+        invoices.push(inv);
       }
-      seenIds.add(id);
-      invoices.push(inv);
-    }
 
-    if (data.length < limit) {
-      hitPageCap = false;
-      break;
+      if (data.length < limit) {
+        hitPageCap = false;
+        break outer;
+      }
     }
   }
 
