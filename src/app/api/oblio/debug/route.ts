@@ -1,11 +1,24 @@
 import { NextResponse } from "next/server";
-import { getOblioToken, isOblioConfigured } from "@/lib/oblio-api";
+import {
+  classifyByInvoicePdf,
+  classifyMentions,
+  getOblioToken,
+  isOblioConfigured,
+  type OblioInvoicePlatform,
+} from "@/lib/oblio-api";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const OBLIO_BASE = "https://www.oblio.eu/api";
 
-type RawInvoice = { seriesName: string; number: string; mentions?: string; client?: { name?: string } };
+type RawInvoice = {
+  seriesName: string;
+  number: string;
+  mentions?: string;
+  link?: string;
+  client?: { name?: string };
+};
 type RawListResponse = { status: number; data?: RawInvoice[] };
 
 export async function GET() {
@@ -27,7 +40,15 @@ export async function GET() {
     const limit = 100;
     let totalScanned = 0;
 
-    const unclassifiedByClient = new Map<string, { count: number; sampleMentions: string; sampleId: string }>();
+    const unclassifiedAfterMentions: RawInvoice[] = [];
+    const platformCountsAfterMentions: Record<OblioInvoicePlatform, number> = {
+      emag: 0,
+      trendyol: 0,
+      site: 0,
+      fulfillment: 0,
+      "call-center": 0,
+      altele: 0,
+    };
 
     for (let page = 0; page < 20; page++) {
       const url = new URL(`${OBLIO_BASE}/docs/invoice/list`);
@@ -48,34 +69,60 @@ export async function GET() {
       totalScanned += data.length;
 
       for (const inv of data) {
-        const m = (inv.mentions ?? "").toLowerCase();
-        const isUnclassified = !m.includes("emag") && !m.includes("trendyol") && !m.includes("infiniteea");
-        if (!isUnclassified) continue;
-
-        const clientName = inv.client?.name ?? "(fără nume client)";
-        const existing = unclassifiedByClient.get(clientName);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          unclassifiedByClient.set(clientName, {
-            count: 1,
-            sampleMentions: inv.mentions ?? "",
-            sampleId: `${inv.seriesName}${inv.number}`,
-          });
-        }
+        const platform = classifyMentions(inv.mentions ?? "");
+        platformCountsAfterMentions[platform] += 1;
+        if (platform === "altele") unclassifiedAfterMentions.push(inv);
       }
 
       if (data.length < limit) break;
     }
 
-    const unclassifiedClients = Array.from(unclassifiedByClient.entries())
-      .map(([clientName, info]) => ({ clientName, ...info }))
-      .sort((a, b) => b.count - a.count);
+    const pdfResults: {
+      id: string;
+      clientName: string;
+      hasLink: boolean;
+      platform: OblioInvoicePlatform;
+      error: string | null;
+    }[] = [];
+
+    for (const inv of unclassifiedAfterMentions) {
+      const id = `${inv.seriesName}${inv.number}`;
+      const clientName = inv.client?.name ?? "(fără nume client)";
+      if (!inv.link) {
+        pdfResults.push({ id, clientName, hasLink: false, platform: "altele", error: null });
+        continue;
+      }
+      try {
+        const platform = await classifyByInvoicePdf(inv.link);
+        pdfResults.push({ id, clientName, hasLink: true, platform, error: null });
+      } catch (err) {
+        pdfResults.push({
+          id,
+          clientName,
+          hasLink: true,
+          platform: "altele",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    const platformCountsAfterPdf: Record<OblioInvoicePlatform, number> = { ...platformCountsAfterMentions };
+    platformCountsAfterPdf.altele = 0;
+    for (const r of pdfResults) {
+      if (r.platform !== "altele") {
+        platformCountsAfterPdf[r.platform] += 1;
+      } else {
+        platformCountsAfterPdf.altele += 1;
+      }
+    }
 
     return NextResponse.json({
       ok: true,
       totalScanned,
-      unclassifiedClients,
+      platformCountsAfterMentions,
+      unclassifiedAfterMentionsCount: unclassifiedAfterMentions.length,
+      platformCountsAfterPdf,
+      pdfResults,
     });
   } catch (err) {
     return NextResponse.json(

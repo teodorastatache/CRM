@@ -94,7 +94,7 @@ export type OblioInvoiceSummary = {
   platform: OblioInvoicePlatform;
 };
 
-function classifyMentions(mentions: string): OblioInvoicePlatform {
+export function classifyMentions(mentions: string): OblioInvoicePlatform {
   const text = mentions.toLowerCase();
   if (text.includes("emag")) return "emag";
   if (text.includes("trendyol")) return "trendyol";
@@ -118,7 +118,7 @@ type RawOblioInvoice = {
   client?: { name?: string };
 };
 
-async function classifyByInvoicePdf(link: string): Promise<OblioInvoicePlatform> {
+export async function classifyByInvoicePdf(link: string): Promise<OblioInvoicePlatform> {
   const res = await fetch(link, { cache: "no-store" });
   if (!res.ok) return "altele";
   const buffer = Buffer.from(await res.arrayBuffer());
