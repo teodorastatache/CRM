@@ -102,3 +102,17 @@ model ComandaPending {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+model Transport {
+  id                 String   @id
+  furnizor           String
+  produse            String
+  cantitate          Int
+  tip                String
+  dataPlecare        String
+  dataEstimataSosire String
+  valoare            Float
+  status             String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
